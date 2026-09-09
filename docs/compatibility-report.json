@@ -1,0 +1,1011 @@
+{
+  "generated_at": "2026-09-08T20:10:14.626950+00:00",
+  "pyembroidery_version": "1.5.1",
+  "fixture": "Morale generated wildflower; four consecutive thread groups, negative coordinates, running and fill stitches",
+  "scope": "Synthetic writer/reader checks only. No physical sew-out or external-file certification. Reader-only formats are unverified.",
+  "original": {
+    "stitches": 2233,
+    "blocks": 10,
+    "bounds_mm": [
+      -20.85861138953661,
+      -41.47538458717024,
+      20.858611389536616,
+      36.58068941368883
+    ],
+    "colors": [
+      "#447568",
+      "#447568",
+      "#7d9c69",
+      "#d68b79",
+      "#d68b79",
+      "#d68b79",
+      "#d68b79",
+      "#d68b79",
+      "#d68b79",
+      "#e9b75e"
+    ],
+    "stops": 0,
+    "trims": 0
+  },
+  "formats": {
+    ".100": {
+      "description": "Toyota Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".10o": {
+      "description": "Toyota Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".bro": {
+      "description": "Bits & Volts Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".dat": {
+      "description": "Sunstar or Barudan Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".dsb": {
+      "description": "Tajima(Barudan) Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".dst": {
+      "description": "Tajima Embroidery Format",
+      "reader_available": true,
+      "writer_available": true,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "pass",
+      "measured": {
+        "stitches": 2233,
+        "blocks": 4,
+        "bounds_mm": [
+          -20.9,
+          -41.5,
+          20.9,
+          36.6
+        ],
+        "colors": [
+          "#447568",
+          "#7d9c69",
+          "#d68b79",
+          "#e9b75e"
+        ],
+        "stops": 0,
+        "trims": 2
+      },
+      "bounds_within_015_mm": true,
+      "rgb_retained": false,
+      "import_notes": [
+        "Imported stitches retain their stitch count when resized; density is not regenerated.",
+        "Some thread colors are absent from this format/file. Placeholder colors are used; confirm them with the original thread chart."
+      ],
+      "export_notes": [
+        "Format writers may add travel, trims, or zero-length stitches. Review the exported design in the target machine's preview.",
+        "This file does not retain RGB thread colors; export a CSV thread chart.",
+        "Operator stops are represented as color changes. Reuse the current thread at those pauses."
+      ]
+    },
+    ".dsz": {
+      "description": "ZSK USA Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".emd": {
+      "description": "Elna Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".exp": {
+      "description": "Melco Expanded Embroidery Format",
+      "reader_available": true,
+      "writer_available": true,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "pass",
+      "measured": {
+        "stitches": 2233,
+        "blocks": 4,
+        "bounds_mm": [
+          -20.9,
+          -41.5,
+          20.9,
+          36.6
+        ],
+        "colors": [
+          "#447568",
+          "#7d9c69",
+          "#d68b79",
+          "#e9b75e"
+        ],
+        "stops": 0,
+        "trims": 0
+      },
+      "bounds_within_015_mm": true,
+      "rgb_retained": false,
+      "import_notes": [
+        "Imported stitches retain their stitch count when resized; density is not regenerated.",
+        "Some thread colors are absent from this format/file. Placeholder colors are used; confirm them with the original thread chart."
+      ],
+      "export_notes": [
+        "Format writers may add travel, trims, or zero-length stitches. Review the exported design in the target machine's preview.",
+        "This file does not retain RGB thread colors; export a CSV thread chart.",
+        "Operator stops are represented as color changes. Reuse the current thread at those pauses."
+      ]
+    },
+    ".exy": {
+      "description": "Eltac Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".fxy": {
+      "description": "Fortron Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".gt": {
+      "description": "Gold Thread Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".hus": {
+      "description": "Husqvarna Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".inb": {
+      "description": "Inbro Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".jef": {
+      "description": "Janome Embroidery Format",
+      "reader_available": true,
+      "writer_available": true,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "pass",
+      "measured": {
+        "stitches": 2233,
+        "blocks": 4,
+        "bounds_mm": [
+          -20.9,
+          -41.5,
+          20.9,
+          36.6
+        ],
+        "colors": [
+          "#595b61",
+          "#899856",
+          "#e2a188",
+          "#e4c35d"
+        ],
+        "stops": 0,
+        "trims": 12
+      },
+      "bounds_within_015_mm": true,
+      "rgb_retained": false,
+      "import_notes": [
+        "Imported stitches retain their stitch count when resized; density is not regenerated."
+      ],
+      "export_notes": [
+        "Format writers may add travel, trims, or zero-length stitches. Review the exported design in the target machine's preview.",
+        "Colors are mapped to the format's fixed thread palette; keep a CSV chart for the intended colors."
+      ]
+    },
+    ".jpx": {
+      "description": "Janome Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".ksm": {
+      "description": "Pfaff Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".max": {
+      "description": "Pfaff Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".mit": {
+      "description": "Mitsubishi Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".new": {
+      "description": "Ameco Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".pcd": {
+      "description": "Pfaff Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".pcm": {
+      "description": "Pfaff Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".pcq": {
+      "description": "Pfaff Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".pcs": {
+      "description": "Pfaff Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".pec": {
+      "description": "Brother Embroidery Format",
+      "reader_available": true,
+      "writer_available": true,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "pass",
+      "measured": {
+        "stitches": 2487,
+        "blocks": 4,
+        "bounds_mm": [
+          -20.9,
+          -41.5,
+          20.9,
+          36.6
+        ],
+        "colors": [
+          "#4f5556",
+          "#878787",
+          "#d0a660",
+          "#feb343"
+        ],
+        "stops": 0,
+        "trims": 370
+      },
+      "bounds_within_015_mm": true,
+      "rgb_retained": false,
+      "import_notes": [
+        "Imported stitches retain their stitch count when resized; density is not regenerated."
+      ],
+      "export_notes": [
+        "Format writers may add travel, trims, or zero-length stitches. Review the exported design in the target machine's preview.",
+        "Colors are mapped to the format's fixed thread palette; keep a CSV chart for the intended colors.",
+        "Same-color thread changes may be decoded as operator stops by PES/PEC readers."
+      ]
+    },
+    ".pes": {
+      "description": "Brother Embroidery Format",
+      "reader_available": true,
+      "writer_available": true,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "pass",
+      "measured": {
+        "stitches": 2487,
+        "blocks": 4,
+        "bounds_mm": [
+          -20.9,
+          -41.5,
+          20.9,
+          36.6
+        ],
+        "colors": [
+          "#447568",
+          "#7d9c69",
+          "#d68b79",
+          "#e9b75e"
+        ],
+        "stops": 0,
+        "trims": 370
+      },
+      "bounds_within_015_mm": true,
+      "rgb_retained": true,
+      "import_notes": [
+        "Imported stitches retain their stitch count when resized; density is not regenerated."
+      ],
+      "export_notes": [
+        "Format writers may add travel, trims, or zero-length stitches. Review the exported design in the target machine's preview.",
+        "Same-color thread changes may be decoded as operator stops by PES/PEC readers."
+      ]
+    },
+    ".phb": {
+      "description": "Brother Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".phc": {
+      "description": "Brother Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".sew": {
+      "description": "Janome Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".shv": {
+      "description": "Husqvarna Viking Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".spx": {
+      "description": "Pfaff Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".stc": {
+      "description": "Gunold Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".stx": {
+      "description": "Data Stitch Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".tap": {
+      "description": "Happy Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".tbf": {
+      "description": "Tajima Embroidery Format",
+      "reader_available": true,
+      "writer_available": true,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "pass",
+      "measured": {
+        "stitches": 2233,
+        "blocks": 4,
+        "bounds_mm": [
+          -20.9,
+          -41.5,
+          20.9,
+          36.6
+        ],
+        "colors": [
+          "#447568",
+          "#7d9c69",
+          "#d68b79",
+          "#e9b75e"
+        ],
+        "stops": 0,
+        "trims": 3
+      },
+      "bounds_within_015_mm": true,
+      "rgb_retained": true,
+      "import_notes": [
+        "Imported stitches retain their stitch count when resized; density is not regenerated.",
+        "Needle-selection events were converted to color-block changes. Reassign machine needles before sewing; original needle assignments are not retained."
+      ],
+      "export_notes": [
+        "Format writers may add travel, trims, or zero-length stitches. Review the exported design in the target machine's preview.",
+        "Needle assignments are generated by the writer. Check them against the machine setup."
+      ]
+    },
+    ".u01": {
+      "description": "Barudan Embroidery Format",
+      "reader_available": true,
+      "writer_available": true,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "pass",
+      "measured": {
+        "stitches": 2233,
+        "blocks": 4,
+        "bounds_mm": [
+          -20.9,
+          -41.5,
+          20.9,
+          36.6
+        ],
+        "colors": [
+          "#447568",
+          "#7d9c69",
+          "#d68b79",
+          "#e9b75e"
+        ],
+        "stops": 0,
+        "trims": 0
+      },
+      "bounds_within_015_mm": true,
+      "rgb_retained": false,
+      "import_notes": [
+        "Imported stitches retain their stitch count when resized; density is not regenerated.",
+        "Some thread colors are absent from this format/file. Placeholder colors are used; confirm them with the original thread chart.",
+        "Needle-selection events were converted to color-block changes. Reassign machine needles before sewing; original needle assignments are not retained."
+      ],
+      "export_notes": [
+        "Format writers may add travel, trims, or zero-length stitches. Review the exported design in the target machine's preview.",
+        "This file does not retain RGB thread colors; export a CSV thread chart.",
+        "Needle assignments are generated by the writer. Check them against the machine setup."
+      ]
+    },
+    ".vp3": {
+      "description": "Pfaff Embroidery Format",
+      "reader_available": true,
+      "writer_available": true,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "pass",
+      "measured": {
+        "stitches": 2233,
+        "blocks": 4,
+        "bounds_mm": [
+          -20.8,
+          -41.5,
+          20.8,
+          36.5
+        ],
+        "colors": [
+          "#447568",
+          "#7d9c69",
+          "#d68b79",
+          "#e9b75e"
+        ],
+        "stops": 0,
+        "trims": 1
+      },
+      "bounds_within_015_mm": true,
+      "rgb_retained": true,
+      "import_notes": [
+        "Imported stitches retain their stitch count when resized; density is not regenerated."
+      ],
+      "export_notes": [
+        "Format writers may add travel, trims, or zero-length stitches. Review the exported design in the target machine's preview.",
+        "Operator stops are represented as color changes. Reuse the current thread at those pauses."
+      ]
+    },
+    ".xxx": {
+      "description": "Singer Embroidery Format",
+      "reader_available": true,
+      "writer_available": true,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "pass",
+      "measured": {
+        "stitches": 2233,
+        "blocks": 4,
+        "bounds_mm": [
+          -20.9,
+          -41.5,
+          20.9,
+          36.6
+        ],
+        "colors": [
+          "#447568",
+          "#7d9c69",
+          "#d68b79",
+          "#e9b75e"
+        ],
+        "stops": 0,
+        "trims": 0
+      },
+      "bounds_within_015_mm": true,
+      "rgb_retained": true,
+      "import_notes": [
+        "Imported stitches retain their stitch count when resized; density is not regenerated."
+      ],
+      "export_notes": [
+        "Format writers may add travel, trims, or zero-length stitches. Review the exported design in the target machine's preview.",
+        "Operator stops are represented as color changes. Reuse the current thread at those pauses."
+      ]
+    },
+    ".zhs": {
+      "description": "Zeng Hsing Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    },
+    ".zxy": {
+      "description": "ZSK TC Embroidery Format",
+      "reader_available": true,
+      "writer_available": false,
+      "external_fixture_tested": false,
+      "physical_machine_tested": false,
+      "synthetic_roundtrip": "not_tested"
+    }
+  },
+  "conversion_pairs": [
+    {
+      "source": ".dst",
+      "target": ".dst",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".dst",
+      "target": ".exp",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".dst",
+      "target": ".jef",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".dst",
+      "target": ".pec",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".dst",
+      "target": ".pes",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".dst",
+      "target": ".tbf",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".dst",
+      "target": ".u01",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".dst",
+      "target": ".vp3",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".dst",
+      "target": ".xxx",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".exp",
+      "target": ".dst",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".exp",
+      "target": ".exp",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".exp",
+      "target": ".jef",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".exp",
+      "target": ".pec",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".exp",
+      "target": ".pes",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".exp",
+      "target": ".tbf",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".exp",
+      "target": ".u01",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".exp",
+      "target": ".vp3",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".exp",
+      "target": ".xxx",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".jef",
+      "target": ".dst",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".jef",
+      "target": ".exp",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".jef",
+      "target": ".jef",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".jef",
+      "target": ".pec",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".jef",
+      "target": ".pes",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".jef",
+      "target": ".tbf",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".jef",
+      "target": ".u01",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".jef",
+      "target": ".vp3",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".jef",
+      "target": ".xxx",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".pec",
+      "target": ".dst",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".pec",
+      "target": ".exp",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".pec",
+      "target": ".jef",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".pec",
+      "target": ".pec",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".pec",
+      "target": ".pes",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".pec",
+      "target": ".tbf",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".pec",
+      "target": ".u01",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".pec",
+      "target": ".vp3",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".pec",
+      "target": ".xxx",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".pes",
+      "target": ".dst",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".pes",
+      "target": ".exp",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".pes",
+      "target": ".jef",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".pes",
+      "target": ".pec",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".pes",
+      "target": ".pes",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".pes",
+      "target": ".tbf",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".pes",
+      "target": ".u01",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".pes",
+      "target": ".vp3",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".pes",
+      "target": ".xxx",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".tbf",
+      "target": ".dst",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".tbf",
+      "target": ".exp",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".tbf",
+      "target": ".jef",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".tbf",
+      "target": ".pec",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".tbf",
+      "target": ".pes",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".tbf",
+      "target": ".tbf",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".tbf",
+      "target": ".u01",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".tbf",
+      "target": ".vp3",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".tbf",
+      "target": ".xxx",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".u01",
+      "target": ".dst",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".u01",
+      "target": ".exp",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".u01",
+      "target": ".jef",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".u01",
+      "target": ".pec",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".u01",
+      "target": ".pes",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".u01",
+      "target": ".tbf",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".u01",
+      "target": ".u01",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".u01",
+      "target": ".vp3",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".u01",
+      "target": ".xxx",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".vp3",
+      "target": ".dst",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".vp3",
+      "target": ".exp",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".vp3",
+      "target": ".jef",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".vp3",
+      "target": ".pec",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".vp3",
+      "target": ".pes",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".vp3",
+      "target": ".tbf",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".vp3",
+      "target": ".u01",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".vp3",
+      "target": ".vp3",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".vp3",
+      "target": ".xxx",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".xxx",
+      "target": ".dst",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".xxx",
+      "target": ".exp",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".xxx",
+      "target": ".jef",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".xxx",
+      "target": ".pec",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".xxx",
+      "target": ".pes",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".xxx",
+      "target": ".tbf",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".xxx",
+      "target": ".u01",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".xxx",
+      "target": ".vp3",
+      "bounds_and_block_count": "pass"
+    },
+    {
+      "source": ".xxx",
+      "target": ".xxx",
+      "bounds_and_block_count": "pass"
+    }
+  ]
+}

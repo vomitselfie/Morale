@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "morale-embroidery"
+version = "0.1.0"
+description = "An open-source native embroidery studio"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = ["PySide6>=6.8,<7", "pyembroidery>=1.5.1,<2", "svgelements>=1.9.6,<2"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pyinstaller>=6"]
+
+[project.scripts]
+morale = "morale.app:main"
+
+[tool.setuptools.packages.find]
+include = ["morale*"]
+
+[tool.setuptools.package-data]
+morale = ["assets/*.svg"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

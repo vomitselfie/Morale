@@ -1,0 +1,218 @@
+{
+  "format": "morale",
+  "version": 2,
+  "name": "Area motif fill sampler",
+  "hoop_width": 100,
+  "hoop_height": 100,
+  "objects": [
+    {
+      "name": "Diamond area fill",
+      "kind": "rectangle",
+      "x": -28,
+      "y": 0,
+      "width": 20,
+      "height": 45,
+      "rotation": 0,
+      "color": "#447568",
+      "stitch_type": "pattern",
+      "spacing": 0.45,
+      "stitch_length": 2.5,
+      "angle": 0,
+      "underlay": true,
+      "visible": true,
+      "points": [],
+      "id": "9df25546ad3d4b7e8b14a6681485d2c3",
+      "stitch_data": [],
+      "color_break": false,
+      "tie_in": false,
+      "tie_off": false,
+      "trim_after": false,
+      "satin_max": 6,
+      "connect_fill": false,
+      "thread": {},
+      "contours": [],
+      "lettering": {},
+      "flip_x": false,
+      "flip_y": false,
+      "stop_after": false,
+      "stage_note": "",
+      "group_id": "",
+      "handles": [],
+      "pull_compensation": 0,
+      "underlay_style": "auto",
+      "underlay_inset": 0,
+      "underlay_spacing": 2,
+      "minimum_stitch": 0,
+      "motif_pattern": "diamond",
+      "motif_width": 4,
+      "motif_height": 3,
+      "motif_spacing": 5,
+      "custom_motif_paths": [],
+      "custom_motif_name": "",
+      "motif_reflected": false,
+      "density_gradient": false,
+      "gradient_end_spacing": 1.5,
+      "gradient_reverse": false,
+      "motif_row_spacing": 5,
+      "pattern_flip_x": false,
+      "pattern_flip_y": false
+    },
+    {
+      "name": "Cross area fill",
+      "kind": "ellipse",
+      "x": 0,
+      "y": 0,
+      "width": 20,
+      "height": 45,
+      "rotation": 0,
+      "color": "#77668b",
+      "stitch_type": "pattern",
+      "spacing": 0.45,
+      "stitch_length": 2.5,
+      "angle": 20,
+      "underlay": true,
+      "visible": true,
+      "points": [],
+      "id": "c808c20b09c9486abf1ace9cbeff6b13",
+      "stitch_data": [],
+      "color_break": false,
+      "tie_in": false,
+      "tie_off": false,
+      "trim_after": false,
+      "satin_max": 6,
+      "connect_fill": false,
+      "thread": {},
+      "contours": [],
+      "lettering": {},
+      "flip_x": false,
+      "flip_y": false,
+      "stop_after": false,
+      "stage_note": "",
+      "group_id": "",
+      "handles": [],
+      "pull_compensation": 0,
+      "underlay_style": "auto",
+      "underlay_inset": 0,
+      "underlay_spacing": 2,
+      "minimum_stitch": 0,
+      "motif_pattern": "cross",
+      "motif_width": 4,
+      "motif_height": 3,
+      "motif_spacing": 5,
+      "custom_motif_paths": [],
+      "custom_motif_name": "",
+      "motif_reflected": false,
+      "density_gradient": false,
+      "gradient_end_spacing": 1.5,
+      "gradient_reverse": false,
+      "motif_row_spacing": 5,
+      "pattern_flip_x": false,
+      "pattern_flip_y": false
+    },
+    {
+      "name": "Custom fill with a hole",
+      "kind": "compound",
+      "x": 28,
+      "y": 0,
+      "width": 20,
+      "height": 45,
+      "rotation": 0,
+      "color": "#c57756",
+      "stitch_type": "pattern",
+      "spacing": 0.45,
+      "stitch_length": 2.5,
+      "angle": 0,
+      "underlay": true,
+      "visible": true,
+      "points": [],
+      "id": "335181f5b5234281aeb74e02152ce4ff",
+      "stitch_data": [],
+      "color_break": false,
+      "tie_in": false,
+      "tie_off": false,
+      "trim_after": false,
+      "satin_max": 6,
+      "connect_fill": false,
+      "thread": {},
+      "contours": [
+        [
+          [
+            -0.5,
+            -0.5
+          ],
+          [
+            0.5,
+            -0.5
+          ],
+          [
+            0.5,
+            0.5
+          ],
+          [
+            -0.5,
+            0.5
+          ]
+        ],
+        [
+          [
+            -0.2,
+            -0.15
+          ],
+          [
+            0.2,
+            -0.15
+          ],
+          [
+            0.2,
+            0.15
+          ],
+          [
+            -0.2,
+            0.15
+          ]
+        ]
+      ],
+      "lettering": {},
+      "flip_x": false,
+      "flip_y": false,
+      "stop_after": false,
+      "stage_note": "",
+      "group_id": "",
+      "handles": [],
+      "pull_compensation": 0,
+      "underlay_style": "auto",
+      "underlay_inset": 0,
+      "underlay_spacing": 2,
+      "minimum_stitch": 0,
+      "motif_pattern": "custom",
+      "motif_width": 4,
+      "motif_height": 3,
+      "motif_spacing": 5,
+      "custom_motif_paths": [
+        [
+          [
+            -0.5,
+            -0.5
+          ],
+          [
+            0.5,
+            -0.5
+          ],
+          [
+            0.5,
+            0.5
+          ]
+        ]
+      ],
+      "custom_motif_name": "Corner",
+      "motif_reflected": false,
+      "density_gradient": false,
+      "gradient_end_spacing": 1.5,
+      "gradient_reverse": false,
+      "motif_row_spacing": 5,
+      "pattern_flip_x": false,
+      "pattern_flip_y": false
+    }
+  ],
+  "reference": {}
+}

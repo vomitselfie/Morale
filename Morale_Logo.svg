@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="#E83E8C">
+  <title>M formed from four sewing needles</title>
+  <defs>
+    <path id="needle" fill-rule="evenodd" d="M0 0C-5 0-7 4-7 10L-5 68 0 100 5 68 7 10C7 4 5 0 0 0ZM0 5C-2 5-2.5 7-2.5 10V18C-2.5 22 2.5 22 2.5 18V10C2.5 7 2 5 0 5Z"/>
+  </defs>
+  <use href="#needle" transform="matrix(1 0 -.16 1.84 44 36)"/>
+  <use href="#needle" transform="matrix(.87 -.493 .68 1.20 60 36)"/>
+  <use href="#needle" transform="matrix(.87 .493 -.68 1.20 196 36)"/>
+  <use href="#needle" transform="matrix(1 0 .16 1.84 212 36)"/>
+</svg>
