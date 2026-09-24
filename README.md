@@ -33,8 +33,10 @@ counts and stitches update; obsolete calculations are cancelled. **Cancel
 calculation** stops a job and **Recalculate** retries it. Playback, machine export,
 thread charts and stitch editing wait for a current preview. Projects can still
 be saved while calculating. Preview workers have a 60-second limit. Some editing
-commands still validate candidates synchronously, and ordinary file decoding and
-some export/dialog operations can still pause the interface.
+commands still validate candidates synchronously, and some export/dialog
+operations can still pause the interface. Opening and importing designs decode
+the file in a separate process with a cancellable progress dialog and a 60-second
+limit; a file that changes while it is read is rejected.
 
 ## Highlights
 
@@ -585,8 +587,7 @@ case-only differences) are all skipped so the result does not depend on file ord
 Staging files are published only after successful conversion, using a hard link
 or a native exclusive rename. If neither operation is supported by the destination
 filesystem, that file fails without a partial output; convert locally and copy the
-completed files to the machine. Ordinary open/import operations remain synchronous;
-batch worker isolation does not yet cover those workflows.
+completed files to the machine. Opening and importing single designs also run in a worker process.
 
 For terminal use, the same queue emits one JSON result per file:
 

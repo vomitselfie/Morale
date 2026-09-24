@@ -33,6 +33,11 @@ test on scrap fabric before sewing a finished piece.
   text: strokes become satin columns over a center run, bowls and counters are
   opened and split at their joins, and wide strokes or dots keep a tatami fill.
 
+### Responsiveness
+- Opening and importing designs decode in a background process with a
+  cancellable progress dialog, so large machine files no longer freeze the
+  window.
+
 ### Packaging and CI
 - Proper platform packages from `packaging/build.py`: Linux AppImage and tar.gz,
   Windows installer and portable zip, macOS `.dmg`, each self-tested, with app

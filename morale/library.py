@@ -78,6 +78,9 @@ class PreviewRunner(QObject):
     def read_output(self):
         self.log=(self.log+bytes(self.process.readAllStandardOutput()))[-8192:]
 
+    def read_result(self,root):
+        return read_preview_result(root)
+
     def clean(self):
         if self.directory:
             self.directory.cleanup()
@@ -120,7 +123,7 @@ class PreviewRunner(QObject):
                     message=json.loads(error_file.read_text(encoding='utf-8')).get('error',message)
                 raise ValueError(message)
             root=Path(self.directory.name)
-            info,image=read_preview_result(root)
+            info,image=self.read_result(root)
         except (OSError,ValueError) as exc:
             error=str(exc)
         finally:

@@ -10,7 +10,7 @@ from PySide6.QtGui import QAction, QActionGroup, QColor, QKeySequence, QIcon, QP
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QListWidget, QListWidgetItem, QFormLayout, QDoubleSpinBox,
     QComboBox, QCheckBox, QLineEdit, QFileDialog, QMessageBox, QColorDialog,
-    QSplitter, QSlider, QToolBar, QScrollArea, QFrame, QPlainTextEdit, QTextEdit, QAbstractSpinBox, QInputDialog)
+    QSplitter, QSlider, QToolBar, QScrollArea, QFrame, QPlainTextEdit, QTextEdit, QAbstractSpinBox, QInputDialog, QProgressDialog)
 
 from .canvas import Canvas
 from .model import Project, DesignObject, PALETTE, demo_project, satin_sample
@@ -113,6 +113,15 @@ class MainWindow(QMainWindow):
         self.pending_snapshot = None
         self.preview_cache = None
         self.generation_runner = GenerationRunner(self) if background_generation else None
+        # Opening and importing decode files in a worker in the desktop app.
+        self.open_runner = None
+        self.opening = None
+        self.open_progress = None
+        if background_generation:
+            from .open_worker import make_runner
+            self.open_runner = make_runner(self)
+            self.open_runner.ready.connect(self.opened)
+            self.open_runner.failed.connect(self.open_failed)
         self.preview_debounce = QTimer(self)
         self.preview_debounce.setSingleShot(True)
         self.preview_debounce.setInterval(80)
@@ -1831,38 +1840,87 @@ class MainWindow(QMainWindow):
             dialog.runner.cancel()
             dialog.deleteLater()
 
-    def open_path(self,path):
+    def open_path(self, path, merge=False):
+        """Open (or, with ``merge``, import) a design; decoding runs in a worker when available."""
+        if self.open_runner is not None:
+            self.start_opening(path, merge)
+            return
+        from .open_worker import decode
         try:
-            if Path(path).suffix.lower() == ".morale":
-                if Path(path).stat().st_size > 50_000_000:
-                    raise ValueError("Project files are limited to 50 MB.")
-                project = Project.loads(Path(path).read_text(encoding="utf-8"))
+            project, notes = decode(path)
+        except (ValueError, OSError) as exc:
+            self.error(f"Could not {'import this design' if merge else 'open this project'}.\n{exc}")
+            return
+        self.finish_open(path, project, notes, merge)
+
+    def start_opening(self, path, merge):
+        self.cancel_opening()
+        self.opening = (str(Path(path).resolve()), merge)
+        self.open_progress = QProgressDialog(f"{'Importing' if merge else 'Opening'} {Path(path).name}…", "Cancel", 0, 0, self)
+        self.open_progress.setWindowTitle("Morale")
+        self.open_progress.setWindowModality(Qt.WindowModality.WindowModal)
+        self.open_progress.setMinimumDuration(400)
+        self.open_progress.canceled.connect(self.cancel_opening)
+        self.open_runner.load(path)
+
+    def close_open_progress(self):
+        if self.open_progress is not None:
+            self.open_progress.canceled.disconnect(self.cancel_opening)
+            self.open_progress.close()
+            self.open_progress.deleteLater()
+            self.open_progress = None
+
+    def cancel_opening(self):
+        if self.opening is not None:
+            self.open_runner.cancel()
+            self.opening = None
+            self.statusBar().showMessage("Opening cancelled.")
+        self.close_open_progress()
+
+    def opened(self, path, result, _image):
+        if self.opening is None or self.opening[0] != path:
+            return
+        _, merge = self.opening
+        self.opening = None
+        self.close_open_progress()
+        project, notes = result
+        self.finish_open(path, project, notes, merge)
+
+    def open_failed(self, path, message):
+        if self.opening is None or self.opening[0] != path:
+            return
+        merge = self.opening[1]
+        self.opening = None
+        self.close_open_progress()
+        self.error(f"Could not {'import this design' if merge else 'open this project'}.\n{message}")
+
+    def finish_open(self, path, project, notes, merge):
+        try:
+            if merge:
+                if not project.objects:
+                    raise ValueError("The design contains no stitches.")
+                if len(self.project.objects) + len(project.objects) > 500:
+                    raise ValueError("Combined design would exceed 500 objects.")
+                combined = deepcopy(self.project)
+                combined.objects.extend(project.objects)
+                generate(combined)  # Check the combined command budget before mutation.
+                self.selected_id = project.objects[0].id
+                self.commit(lambda: self.project.objects.extend(project.objects))
+                QMessageBox.information(self, "Design imported", "\n\n".join(notes))
+            elif Path(path).suffix.lower() == ".morale":
                 self.replace_project(project, Path(path))
             else:
-                result = import_machine(path)
-                self.replace_project(result.project)
+                self.replace_project(project)
                 self.saved = ""
                 self.update_title()
-                QMessageBox.information(self, "Design imported", "\n\n".join(result.notes))
+                QMessageBox.information(self, "Design imported", "\n\n".join(notes))
         except (ValueError, OSError) as exc:
-            self.error(f"Could not open this project.\n{exc}")
+            self.error(f"Could not {'import this design' if merge else 'open this project'}.\n{exc}")
 
     def import_design(self):
         path, _ = QFileDialog.getOpenFileName(self, "Import machine design", "", file_filters())
-        if not path:
-            return
-        try:
-            result = import_machine(path)
-            if len(self.project.objects) + len(result.project.objects) > 500:
-                raise ValueError("Combined design would exceed 500 objects.")
-            combined = deepcopy(self.project)
-            combined.objects.extend(result.project.objects)
-            generate(combined)  # Check the combined command budget before mutation.
-            self.selected_id = result.project.objects[0].id
-            self.commit(lambda: self.project.objects.extend(result.project.objects))
-            QMessageBox.information(self, "Design imported", "\n\n".join(result.notes))
-        except (ValueError, OSError) as exc:
-            self.error(f"Could not import this design.\n{exc}")
+        if path:
+            self.open_path(path, merge=True)
 
     def batch_convert(self):
         self.reset_playback()
@@ -1974,6 +2032,8 @@ class MainWindow(QMainWindow):
             self.preview_debounce.stop()
             if self.generation_runner:
                 self.generation_runner.cancel()
+            if self.open_runner:
+                self.cancel_opening()
             self.recovery_timer.stop()
             self.recovery_idle.stop()
             if self.recovery:
@@ -2064,6 +2124,9 @@ def main():
         sys.exit(worker_main(sys.argv[2:]))
     if len(sys.argv)>1 and sys.argv[1]=='--preview-worker':
         from .preview_worker import worker_main
+        sys.exit(worker_main(sys.argv[2:]))
+    if len(sys.argv)>1 and sys.argv[1]=='--open-worker':
+        from .open_worker import worker_main
         sys.exit(worker_main(sys.argv[2:]))
     if len(sys.argv) > 1 and sys.argv[1] == "--batch-worker":
         from .batch import worker_main

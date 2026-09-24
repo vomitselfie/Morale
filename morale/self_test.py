@@ -325,6 +325,12 @@ def run(output):
             if not any(s.command=='stitch' for b in generate(import_machine(path).project) for s in b.stitches):
                 raise RuntimeError(f'{extension} decoded no sewn stitches.')
             report['checks'].append('export_reopen_'+extension)
+        # Opening a design decodes it in the packaged open worker.
+        worker('--open-worker',exports/'sample.pes',root/'open')
+        from .open_worker import read_open_result
+        opened,_=read_open_result(root/'open',exports/'sample.pes')
+        if not any(s.command=='stitch' for b in generate(opened) for s in b.stitches):raise RuntimeError('Open worker decoded no sewn stitches.')
+        report['checks'].append('open_worker')
         report['passed']=True
     except Exception as exc:
         report['error']=str(exc)

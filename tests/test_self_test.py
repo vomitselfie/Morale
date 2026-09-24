@@ -16,7 +16,7 @@ def test_explicit_self_test_exercises_workers_native_project_and_exports(tmp_pat
     assert result.returncode==0,result.stderr
     report=json.loads((root/'report.json').read_text())
     assert report['passed'] and not report['frozen']
-    assert len(report['checks'])==32 and not report['physical_sewouts'] and not report['external_files']
+    assert len(report['checks'])==33 and 'open_worker' in report['checks'] and not report['physical_sewouts'] and not report['external_files']
     assert (root/'raster/preview.json').exists() and (root/'svg/preview.json').exists()
     assert len(list((root/'exports').iterdir()))==9
 
