@@ -6,7 +6,7 @@ import uuid
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPainterPath
 
-from .model import Project
+from .model import Project, drop_lettering
 
 
 def replace_contours(source, rings):
@@ -37,7 +37,7 @@ def replace_contours(source, rings):
     candidate.flip_x = candidate.flip_y = False
     candidate.contours = [[[(x - candidate.x) / candidate.width, (y - candidate.y) / candidate.height]
                            for x, y in ring] for ring in rings]
-    candidate.lettering = {}
+    drop_lettering(candidate)
     return Project.loads(Project(objects=[candidate]).dumps()).objects[0]
 
 
@@ -96,7 +96,7 @@ def combine_outlines(objects, operation):
     candidate.points = []
     candidate.handles = []
     candidate.stitch_data = []
-    candidate.lettering = {}
+    drop_lettering(candidate)
     candidate.contours = contours
     # Keep membership only when all sources belong to the same flat group.
     candidate.group_id = objects[0].group_id if len({o.group_id for o in objects}) == 1 else ""

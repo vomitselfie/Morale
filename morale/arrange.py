@@ -146,7 +146,7 @@ def transform_selection(objects, scale=1., rotation=0., origin="selection", scal
 
 def _affine_object(source, affine, sx, sy, rotation):
     """Bake shear into editable points rather than approximating it with rotation."""
-    from .model import Project
+    from .model import Project, drop_lettering
     result = deepcopy(source)
     if source.handles:
         rings = [source.control_points()]
@@ -164,7 +164,7 @@ def _affine_object(source, affine, sx, sy, rotation):
     result.rotation = 0
     result.motif_reflected ^= result.flip_x ^ result.flip_y
     result.flip_x = result.flip_y = False
-    result.lettering = {}
+    drop_lettering(result)
     angle = math.radians(source.angle)
     result.angle = (math.degrees(math.atan2(sy*math.sin(angle), sx*math.cos(angle)))+rotation+180)%360-180
     if source.handles:

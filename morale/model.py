@@ -98,6 +98,40 @@ class DesignObject:
                  self.y + px * sx * self.width * s + py * sy * self.height * c) for px, py in points]
 
 
+def validate_columns(columns, number):
+    """Planned satin-lettering pieces in the object's normalized frame."""
+    if not isinstance(columns, list) or not 1 <= len(columns) <= 2000:
+        raise ValueError("Satin lettering needs 1–2,000 planned pieces.")
+    total = 0
+    for piece in columns:
+        if not isinstance(piece, dict) or len(piece) != 1 or next(iter(piece)) not in {"rails", "fill", "run"}:
+            raise ValueError("Invalid satin lettering piece.")
+        kind, value = next(iter(piece.items()))
+        paths = value if kind == "fill" else [value]
+        if not isinstance(paths, list) or not paths:
+            raise ValueError("Invalid satin lettering piece.")
+        for path in paths:
+            minimum = 3 if kind == "fill" else 4 if kind == "rails" else 2
+            if not isinstance(path, list) or len(path) < minimum or kind == "rails" and len(path) % 2:
+                raise ValueError("Invalid satin lettering outline or rails.")
+            total += len(path)
+            for point in path:
+                if not isinstance(point, list) or len(point) != 2:
+                    raise ValueError("Invalid satin lettering coordinate.")
+                # Join overlaps can reach just past the glyph bounds.
+                for v in point:
+                    number(v, -1, 1)
+    if total > 100_000:
+        raise ValueError("Satin lettering exceeds 100,000 planned points.")
+
+
+def drop_lettering(obj):
+    """Turn lettering into plain outlines; planned satin columns go with it."""
+    obj.lettering = {}
+    if obj.kind == "compound" and obj.stitch_type == "satin":
+        obj.stitch_type = "fill"
+
+
 @dataclass
 class Project:
     name: str = "Untitled design"
@@ -170,7 +204,7 @@ class Project:
             if not isinstance(obj.lettering, dict):
                 raise ValueError("Invalid lettering properties.")
             if obj.lettering:
-                if obj.kind != "compound" or not {"text", "family", "height", "spacing"} <= set(obj.lettering) or set(obj.lettering) - {"text", "family", "height", "spacing", "layout", "curve", "layout_height", "baseline"}:
+                if obj.kind != "compound" or not {"text", "family", "height", "spacing"} <= set(obj.lettering) or set(obj.lettering) - {"text", "family", "height", "spacing", "layout", "curve", "layout_height", "baseline", "columns"}:
                     raise ValueError("Unsupported lettering properties.")
                 if not isinstance(obj.lettering["text"], str) or not 1 <= len(obj.lettering["text"]) <= 80 or not isinstance(obj.lettering["family"], str) or len(obj.lettering["family"]) > 200:
                     raise ValueError("Invalid lettering text or font.")
@@ -187,6 +221,10 @@ class Project:
                     if any(a==b for a,b in zip(baseline,baseline[1:])):raise ValueError('Lettering baseline has a zero-length segment.')
                 elif 'baseline' in obj.lettering:raise ValueError('Only path lettering can store a baseline.')
                 number(obj.lettering.get("curve", 60), -180, 180)
+                if "columns" in obj.lettering:
+                    validate_columns(obj.lettering["columns"], number)
+                    if obj.stitch_type != "satin":
+                        raise ValueError("Only satin lettering stores planned columns.")
                 number(obj.lettering.get("layout_height", obj.lettering["height"]), .1, 500)
             for key, low, high in [("x", -1000, 1000), ("y", -1000, 1000), ("width", .1, 500), ("height", .1, 500), ("rotation", -360, 360), ("angle", -360, 360), ("spacing", .2, 5), ("stitch_length", .5, 6)]:
                 number(getattr(obj, key), low, high)
@@ -234,7 +272,8 @@ class Project:
                         number(v, -.500000001, .500000001)
             if obj.kind == "path" and obj.stitch_type not in {"running", "triple", "motif"}:
                 raise ValueError("Open paths must use running or motif stitches.")
-            if (obj.kind == "satin") != (obj.stitch_type == "satin"):
+            satin_lettering = obj.kind == "compound" and "columns" in obj.lettering
+            if (obj.kind == "satin" or satin_lettering) != (obj.stitch_type == "satin"):
                 raise ValueError("Satin stitches require paired rails.")
             if obj.kind == "satin" and (len(obj.points) < 4 or len(obj.points) % 2):
                 raise ValueError("Satin requires at least two complete left/right rail pairs.")

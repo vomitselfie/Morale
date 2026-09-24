@@ -26,10 +26,12 @@ def lettering_font(text,family,height,spacing):
     return font,actual_family
 
 
-def make_lettering(text, family, height=15., spacing=100., previous=None, *, layout="straight", curve=60., baseline=None):
+def make_lettering(text, family, height=15., spacing=100., previous=None, *, layout="straight", curve=60., baseline=None, stitch_type=None):
+    if stitch_type is not None and stitch_type not in STITCH_TYPES:
+        raise ValueError("Choose satin columns, tatami fill, running or triple running lettering.")
     if layout=="path":
         from .path_lettering import make_path_lettering
-        return make_path_lettering(text,family,height,spacing,previous,baseline=baseline)
+        return make_path_lettering(text,family,height,spacing,previous,baseline=baseline,stitch_type=stitch_type)
     font,actual_family=lettering_font(text,family,height,spacing)
     if layout not in {"straight", "curved", "monogram"} or not math.isfinite(curve) or not -180 <= curve <= 180:
         raise ValueError("Choose a supported layout and a curve between −180° and 180°.")
@@ -94,10 +96,25 @@ def make_lettering(text, family, height=15., spacing=100., previous=None, *, lay
     obj.points, obj.stitch_data = [], []
     obj.contours = contours
     obj.lettering = {"text": text, "family": actual_family, "height": height, "spacing": spacing, "layout": layout, "curve": curve, "layout_height": total_height}
-    if obj.stitch_type not in {"fill", "running", "triple"}:
+    return finish_lettering(obj, previous, stitch_type)
+
+
+STITCH_TYPES = ("satin", "fill", "running", "triple")
+
+
+def finish_lettering(obj, previous, stitch_type=None):
+    """Apply the stitch choice; satin lettering plans its columns here, once."""
+    obj.lettering.pop("columns", None)
+    if stitch_type is not None:
+        obj.stitch_type = stitch_type
+    if obj.stitch_type not in STITCH_TYPES:
         obj.stitch_type = "fill"
     if previous is None:
-        obj.underlay = False
+        # Satin columns sew better over a center run; fill lettering starts plain.
+        obj.underlay = obj.stitch_type == "satin"
+    if obj.stitch_type == "satin":
+        from .satin_lettering import attach_columns
+        attach_columns(obj)
     Project.loads(Project(objects=[obj]).dumps())
     generate(Project(objects=[obj]))
     return obj
@@ -112,7 +129,7 @@ class LetteringDialog(QDialog):
         self.candidate = None
         settings = obj.lettering if obj else {}
         layout = QVBoxLayout(self)
-        note = QLabel("Create fill or running lettering from an installed font. These are not purpose-digitized embroidery fonts. Small text needs a sew-out test. Saved outlines travel with the project; editing requires a font on this computer.")
+        note = QLabel("Create lettering from an installed font. Satin columns are planned automatically from the letter outlines; wide or complex strokes keep a tatami fill. These are not purpose-digitized embroidery fonts, and small text needs a sew-out test. Saved outlines travel with the project; editing requires a font on this computer.")
         note.setWordWrap(True)
         layout.addWidget(note)
         if settings and settings["family"] not in QFontDatabase.families():
@@ -147,8 +164,13 @@ class LetteringDialog(QDialog):
         self.curve.setValue(settings.get("curve", 60))
         self.curve.setSuffix("°")
         self.curve.setEnabled(self.layout_choice.currentData() == "curved")
+        self.stitches = QComboBox()
+        for title, value in [("Satin columns", "satin"), ("Tatami fill", "fill"), ("Running stitch", "running"), ("Triple running stitch", "triple")]:
+            self.stitches.addItem(title, value)
+        self.stitches.setCurrentIndex(max(0, self.stitches.findData(obj.stitch_type if obj else "satin")))
+        self.stitches.setToolTip("Satin columns follow each stroke; strokes wider than 6 mm or too complex to split keep a tatami fill.")
         self.layout_choice.currentIndexChanged.connect(lambda: self.curve.setEnabled(self.layout_choice.currentData() == "curved"))
-        for title, widget in [("Text", self.text), ("Font", self.font), ("Letter height", self.height), ("Character spacing", self.spacing), ("Layout", self.layout_choice), ("Curve angle", self.curve)]:
+        for title, widget in [("Text", self.text), ("Font", self.font), ("Letter height", self.height), ("Character spacing", self.spacing), ("Layout", self.layout_choice), ("Curve angle", self.curve), ("Stitches", self.stitches)]:
             widget.setAccessibleName(title)
             form.addRow(title, widget)
         layout.addLayout(form)
@@ -170,7 +192,7 @@ class LetteringDialog(QDialog):
 
     def accept(self):
         try:
-            self.candidate = make_lettering(self.text.text(), self.font.currentFont().family(), self.height.value(), self.spacing.value(), self.previous, layout=self.layout_choice.currentData(), curve=self.curve.value(), baseline=self.baseline)
+            self.candidate = make_lettering(self.text.text(), self.font.currentFont().family(), self.height.value(), self.spacing.value(), self.previous, layout=self.layout_choice.currentData(), curve=self.curve.value(), baseline=self.baseline, stitch_type=self.stitches.currentData())
         except ValueError as exc:
             QMessageBox.warning(self, "Lettering", str(exc))
             return

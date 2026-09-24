@@ -741,7 +741,8 @@ class MainWindow(QMainWindow):
             self.stitch_type.setEnabled(obj.kind not in {"stitches", "satin"})
             for index in range(self.stitch_type.count()):
                 mode = self.stitch_type.itemData(index)
-                enabled = mode in ({"manual"} if obj.kind == "stitches" else {"satin"} if obj.kind == "satin" else {"running", "triple", "motif"} if obj.kind == "path" else {"fill", "contour", "running", "triple", "motif", "pattern"})
+                # Lettering offers planned satin columns alongside fill and running.
+                enabled = mode in ({"manual"} if obj.kind == "stitches" else {"satin"} if obj.kind == "satin" else {"running", "triple", "motif"} if obj.kind == "path" else {"satin", "fill", "running", "triple"} if obj.lettering else {"fill", "contour", "running", "triple", "motif", "pattern"})
                 self.stitch_type.model().item(index).setEnabled(enabled)
             self.fields["stitch_length"].setEnabled(obj.kind != "stitches")
             self.fields["minimum_stitch"].setEnabled(obj.kind != "stitches")
@@ -863,6 +864,9 @@ class MainWindow(QMainWindow):
             return
         obj = self.selected_object()
         if not self.syncing and obj and getattr(obj, key) != value:
+            if key == "stitch_type" and obj.lettering:
+                self.change_lettering_stitches(obj, value)
+                return
             if key == "stitch_type" and (value in {"manual", "satin"} or obj.kind in {"stitches", "satin"} or obj.kind == "path" and value not in {"running", "triple", "motif"}):
                 return
             def change():
@@ -1109,6 +1113,22 @@ class MainWindow(QMainWindow):
                 self.apply_lettering(dialog.candidate, replace=True)
             except ValueError as exc:
                 self.error(str(exc))
+
+    def change_lettering_stitches(self, obj, stitch_type):
+        """Switch lettering stitches; choosing satin plans its columns."""
+        from .lettering import STITCH_TYPES, finish_lettering
+        if stitch_type not in STITCH_TYPES:
+            self.sync_properties()
+            return
+        candidate = deepcopy(obj)
+        try:
+            self.statusBar().showMessage("Planning satin columns…" if stitch_type == "satin" else "")
+            QApplication.processEvents()
+            candidate = finish_lettering(candidate, obj, stitch_type)
+            self.apply_lettering(candidate, replace=True)
+        except ValueError as exc:
+            self.error(f"Could not change the lettering stitches.\n{exc}")
+            self.sync_properties()
 
     def apply_lettering(self, candidate, replace=False, hide_guide_id=None):
         combined = deepcopy(self.project)
@@ -1944,7 +1964,7 @@ class MainWindow(QMainWindow):
                 self.error(str(exc))
 
     def help(self):
-        QMessageBox.information(self, "Make your first design", "Choose a shape tool and drag in the hoop. For polygon/path and satin rails, click points and press Enter. Escape cancels. Scroll zooms; middle-drag pans.\n\nEdit → Add lettering creates editable system-font outlines with holes. Edit lettering changes text/font/height/spacing. Saved contours remain usable without the font. Choose straight, curved, or three-letter monogram layout. Purpose-digitized embroidery fonts remain in development.\n\nSelect an object to set size, thread, stitches, and finishing. Edit path / satin points changes coordinates; Edit individual stitches permits command editing. Applying stitch edits converts that object to manual stitches; Undo restores geometry.\n\nPreview, save a .morale project, and export a machine format. File also offers machine import, batch conversion, CSV charts and samplers. View provides units, custom fields and rulers.\n\nFile → Import SVG artwork creates editable fills and running outlines. Pull compensation in object properties extends fill and satin stitches per side. Advanced routing remains in development. Physical sew-out validation is still required.")
+        QMessageBox.information(self, "Make your first design", "Choose a shape tool and drag in the hoop. For polygon/path and satin rails, click points and press Enter. Escape cancels. Scroll zooms; middle-drag pans.\n\nEdit → Add lettering creates editable system-font lettering, sewn as satin columns by default. Edit lettering changes text/font/height/spacing. Saved contours remain usable without the font. Choose straight, curved, or three-letter monogram layout. Purpose-digitized embroidery fonts remain in development.\n\nSelect an object to set size, thread, stitches, and finishing. Edit path / satin points changes coordinates; Edit individual stitches permits command editing. Applying stitch edits converts that object to manual stitches; Undo restores geometry.\n\nPreview, save a .morale project, and export a machine format. File also offers machine import, batch conversion, CSV charts and samplers. View provides units, custom fields and rulers.\n\nFile → Import SVG artwork creates editable fills and running outlines. Pull compensation in object properties extends fill and satin stitches per side. Advanced routing remains in development. Physical sew-out validation is still required.")
 
     def closeEvent(self, event):
         if self.confirm_discard():

@@ -50,7 +50,7 @@ def layout_on_path(text,font,height,baseline):
     return QTransform().scale(.05,.05).map(QTransform().scale(20,20).map(result).simplified())
 
 
-def make_path_lettering(text,family,height=15.,spacing=100.,previous=None,*,baseline=None):
+def make_path_lettering(text,family,height=15.,spacing=100.,previous=None,*,baseline=None,stitch_type=None):
     from .lettering import lettering_font
     font,actual_family=lettering_font(text,family,height,spacing)
     if baseline is None:
@@ -70,13 +70,12 @@ def make_path_lettering(text,family,height=15.,spacing=100.,previous=None,*,base
     if not rings or len(rings)>256 or sum(map(len,rings))>20_000:raise ValueError('Path lettering exceeds the supported outline complexity. Use shorter text or a simpler font.')
     xs,ys=zip(*(p for ring in rings for p in ring));cx=(min(xs)+max(xs))/2;cy=(min(ys)+max(ys))/2
     width=max(.1,max(xs)-min(xs));total_height=max(.1,max(ys)-min(ys))
-    obj=deepcopy(previous) if previous is not None else DesignObject(underlay=False)
+    obj=deepcopy(previous) if previous is not None else DesignObject()
     obj.x,obj.y=previous.transform([(cx/previous.width,cy/previous.height)])[0] if previous is not None else (cx,cy)
     obj.kind='compound';obj.name=text[:200];obj.width=width;obj.height=total_height
     obj.points=[];obj.handles=[];obj.stitch_data=[]
     obj.contours=[[[(x-cx)/width,(y-cy)/total_height] for x,y in ring] for ring in rings]
     obj.lettering={'text':text,'family':actual_family,'height':height,'spacing':spacing,'layout':'path','curve':60,'layout_height':total_height,
                   'baseline':[[(x-cx)/width,(y-cy)/total_height] for x,y in baseline]}
-    if obj.stitch_type not in {'fill','running','triple'}:obj.stitch_type='fill'
-    Project.loads(Project(objects=[obj]).dumps());generate(Project(objects=[obj]))
-    return obj
+    from .lettering import finish_lettering
+    return finish_lettering(obj,previous,stitch_type)

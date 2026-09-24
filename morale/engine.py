@@ -313,6 +313,26 @@ def generate_underlay(obj):
     return result
 
 
+def lettering_columns(obj):
+    """Sew planned satin-lettering pieces in text order."""
+    result = []
+    for piece in obj.lettering["columns"]:
+        if "rails" in piece:
+            rails = obj.transform(piece["rails"])
+            if obj.underlay:
+                center = [((a[0]+b[0])/2, (a[1]+b[1])/2) for a, b in zip(rails[::2], rails[1::2])]
+                result += running(center, obj.stitch_length, closed=False)
+            result += satin(rails, obj.spacing, obj.satin_max, obj.pull_compensation)
+        elif "run" in piece:
+            result += running(obj.transform(piece["run"]), obj.stitch_length, closed=False)
+        else:
+            rings = [obj.transform(ring) for ring in piece["fill"]]
+            result += fill(rings[0], obj.spacing, obj.stitch_length, obj.angle, obj.connect_fill, rings[1:], obj.pull_compensation)
+        if len(result) > MAX_STITCHES:
+            raise ValueError("Satin lettering exceeds the preview command limit.")
+    return result
+
+
 def contour_fill(rings,spacing,length):
     from .underlay import OffsetGeometry
     if not math.isfinite(spacing) or not .2 <= spacing <= 5:
@@ -360,6 +380,8 @@ def generate(project):
             stitches = [s for ring in rings for s in running(ring, obj.stitch_length, obj.kind != "path")]
             if obj.stitch_type == "triple":
                 stitches = triple_run(stitches)
+        elif obj.kind == "compound" and obj.stitch_type == "satin":
+            stitches = lettering_columns(obj)
         elif obj.kind == "satin":
             rails = obj.transform(obj.points)
             stitches = generate_underlay(obj)
@@ -376,7 +398,7 @@ def generate(project):
                     fill_stitches=route_fill_runs(fill_stitches)
                 stitches += fill_stitches
         if obj.kind != "stitches":
-            stitches = short_stitch_cleanup(stitches,obj.minimum_stitch,obj.satin_max if obj.kind == "satin" else obj.stitch_length)
+            stitches = short_stitch_cleanup(stitches,obj.minimum_stitch,obj.satin_max if obj.stitch_type == "satin" else obj.stitch_length)
             stitches = finish_stitches(stitches, obj.tie_in, obj.tie_off, obj.trim_after, obj.jump_trim)
             if obj.stop_after and stitches:
                 stitches.append(Stitch(stitches[-1].x, stitches[-1].y, "stop"))

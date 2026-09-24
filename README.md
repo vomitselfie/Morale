@@ -293,6 +293,16 @@ Generated contours are saved in the project, so a missing font on another comput
 does not change the saved design. Editing text there requires a replacement font;
 the dialog identifies unavailable saved fonts. Unsupported characters are rejected.
 
+Choose **Stitches → Satin columns** (the default for new lettering) to sew each
+stroke as a satin column over a center-run underlay. Columns are planned once, when
+the text is created or edited: each glyph is split at its crotches, holes that are
+not simple rings (a, b, e, A, R…) are opened with two short cuts across the stroke,
+and pieces overlap 0.3 mm at their joins. Strokes wider than 6 mm, dots and shapes
+that cannot be split keep a tatami fill; hairlines become running stitches. The
+plan is stored with the lettering, so moving, rotating and uniform scaling keep it;
+editing the text re-plans. Stretching unevenly turns lettering into plain fill
+outlines. The same choice is available in object properties.
+
 This is system-font outline digitizing, not a library of purpose-digitized satin
 fonts. Small lettering needs physical tests. Curved layout bends the outlines
 along an arc. **Edit → Add lettering along path** places shaped glyph groups

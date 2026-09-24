@@ -1,6 +1,6 @@
 """Explicit start anchors and direction for editable runs and satin stations."""
 from copy import deepcopy
-from .model import Project
+from .model import Project, drop_lettering
 
 
 def routing_rings(source):
@@ -56,5 +56,5 @@ def route_object(source, plan):
             if source.kind!='path': result.kind='polygon'
             if source.handles:
                 result.handles=[deepcopy(source.handles[i][::-1] if plan[0][2] else source.handles[i]) for i in orders[0]]
-        result.lettering={}
+        drop_lettering(result)
     return Project.loads(Project(objects=[result]).dumps()).objects[0]

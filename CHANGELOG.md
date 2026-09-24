@@ -28,6 +28,11 @@ test on scrap fabric before sewing a finished piece.
   not overlap anything in between, keeping layer order.
 - Faster area measurement across conversion (full test suite about 27% faster).
 
+### Lettering
+- **Satin-column lettering** from any installed font, now the default for new
+  text: strokes become satin columns over a center run, bowls and counters are
+  opened and split at their joins, and wide strokes or dots keep a tatami fill.
+
 ### Packaging and CI
 - Proper platform packages from `packaging/build.py`: Linux AppImage and tar.gz,
   Windows installer and portable zip, macOS `.dmg`, each self-tested, with app
