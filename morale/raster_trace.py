@@ -219,6 +219,10 @@ def worker_main(args):
         reverse=settings.pop('reverse_for_travel',False)
         thread_catalog=settings.pop('thread_catalog','')
         color_metric=settings.pop('color_metric','oklab')
+        distinct_threads=settings.pop('distinct_threads',False)
+        group_colors=settings.pop('group_colors',False)
+        if type(distinct_threads) is not bool:raise ValueError('Invalid distinct thread planning setting.')
+        if type(group_colors) is not bool:raise ValueError('Invalid thread grouping setting.')
         if type(route) is not bool: raise ValueError('Invalid travel ordering setting.')
         if Path(source).suffix.lower()=='.svg':
             from .vector_artwork import vector_artwork
@@ -244,11 +248,19 @@ def worker_main(args):
             from .trace_angles import choose_fill_angles
             project,stats['fill_angles']=choose_fill_angles(project)
         from .trace_threads import match_trace_threads
-        project,stats['thread_matches']=match_trace_threads(project,thread_catalog,color_metric)
+        project,stats['thread_matches']=match_trace_threads(project,thread_catalog,color_metric,distinct_threads)
         stats['thread_colors']=len({obj.color.lower() for obj in project.objects})
+        # Final sewing position -> region index in stitch decisions.
+        sewing_order=list(range(len(project.objects)))
+        if group_colors:
+            from .thread_planning import group_thread_runs
+            project,stats['color_grouping']=group_thread_runs(project)
+            sewing_order=[sewing_order[i] for i in stats['color_grouping']['order']]
         if route:
             from .trace_routing import reduce_travel
             project,stats['routing']=reduce_travel(project,reverse)
+            sewing_order=[sewing_order[i] for i in stats['routing']['order']]
+        stats['sewing_order']=sewing_order
         if finishing:
             from .trace_finishing import finish_regions
             project,stats['finishing']=finish_regions(project,trim_threshold,internal_trims)
@@ -281,6 +293,7 @@ def worker_main(args):
         stats['quality']['finishing']=stats.get('finishing')
         stats['quality']['fill_angles']=stats.get('fill_angles')
         stats['quality']['routing']=stats.get('routing')
+        stats['quality']['color_grouping']=stats.get('color_grouping')
         stats['quality']['overlap']=stats.get('overlap')
         stats['quality']['detail_filter']=stats['detail_filter']
         stats['quality']['hole_filter']=stats['hole_filter']

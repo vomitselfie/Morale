@@ -140,8 +140,17 @@ class TraceDialog(QDialog):
         self.color_metric.addItem('Perceptual (Oklab)','oklab');self.color_metric.addItem('RGB distance (comparison)','rgb')
         self.color_metric.setToolTip('Oklab compares estimated lightness and color differences from sRGB swatches. Neither method predicts physical thread appearance.')
         form.addRow('Color matching',self.color_metric)
+        self.distinct_threads=QCheckBox('Keep different artwork colors on different threads')
+        self.distinct_threads.setChecked(True)
+        self.distinct_threads.setToolTip('Plan the whole palette at once so two clearly different colors never share a thread, choosing the combination with the least total color error. Colors that are nearly identical may still share. With no conflicts this matches nearest-thread matching.')
+        self.distinct_threads.toggled.connect(self.invalidate_preview)
+        form.addRow(self.distinct_threads)
         form=travel_form
+        self.group_colors=QCheckBox('Group regions by thread to reduce color changes')
+        self.group_colors.setToolTip('Move regions that do not overlap anything in between so each thread sews in fewer runs. Overlapping regions keep their layer order; stops and appliqué stages are not crossed.')
+        form.addRow(self.group_colors)
         self.route=QCheckBox('Reduce travel within each thread-color run')
+        self.group_colors.toggled.connect(self.invalidate_preview)
         self.route.setToolTip('Reorder separated regions using generated stitch endpoints. Overlapping regions keep their order. Distances start at the artwork origin.')
         form.addRow(self.route)
         self.reverse_travel=QCheckBox('Allow open columns and paths to sew in reverse')
@@ -309,7 +318,7 @@ class TraceDialog(QDialog):
             'color_metric':self.color_metric,'underlay':self.trace_underlay,'ignore_white':self.white,'border_white':self.border_white,
             'split_branches':self.branching,'branch_overlap':self.branch_overlap,'optimize_fill_angles':self.optimize_angles,'route_fill':self.route_fill,
             'remove_overlap':self.remove_overlap,'overlap_allowance':self.overlap_allowance,'minimum_fill_area':self.minimum_fill_area,'minimum_hole_area':self.minimum_hole_area,
-            'reduce_travel':self.route,'reverse_for_travel':self.reverse_travel,'finish_regions':self.finishing,
+            'reduce_travel':self.route,'group_colors':self.group_colors,'distinct_threads':self.distinct_threads,'reverse_for_travel':self.reverse_travel,'finish_regions':self.finishing,
             'internal_trims':self.internal_trims,'trim_threshold':self.trim_threshold,'expand_strokes':self.expand_strokes,
             'custom_stitches':self.custom_stitches,**self.stitch_settings,**self.underlay_choices}
         preset_row=QHBoxLayout();preset_row.addWidget(QLabel('Reuse tracing and stitch settings'),1)
@@ -401,6 +410,7 @@ class TraceDialog(QDialog):
                              'method':self.method.currentData(),'smoothing':self.smoothing.value(),
                              'stitch_mode':self.stitch_mode.currentData(),'stitch_overrides':dict(self.overrides),
                              'reduce_travel':self.route.isChecked()}
+        self.runner.options.update(group_colors=self.group_colors.isChecked(),distinct_threads=self.distinct_threads.isChecked())
         self.runner.options['border_white']=self.border_white.isChecked()
         self.runner.options['palette_metric']=self.palette_metric.currentData()
         self.runner.options['thread_catalog']=self.thread_catalog.currentData()
@@ -443,7 +453,7 @@ class TraceDialog(QDialog):
             self.quality_button.setEnabled(self.quality is not None)
             decisions=stats.get('stitch_decisions',[])
             routing=stats.get('routing')
-            sewing_order=routing['order'] if routing else list(range(len(decisions)))
+            sewing_order=stats.get('sewing_order') or (routing['order'] if routing else list(range(len(decisions))))
             self.decisions.setRowCount(len(decisions))
             for row,decision in enumerate(decisions):
                 reason=decision['reason']

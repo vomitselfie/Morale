@@ -14,14 +14,14 @@ CHOICES={'method':{'smooth','pixels'},'stitch_mode':{'auto','fill'},'palette_met
          'color_metric':{'rgb','oklab'},'underlay':{'keep','off','auto'},
          'fill_underlay':{'keep','off','auto','edge','sparse','edge_sparse'},
          'satin_underlay':{'keep','off','auto','zigzag','center_zigzag'}}
-FLAGS={'ignore_white','split_branches','optimize_fill_angles','route_fill','remove_overlap','reduce_travel',
+FLAGS={'group_colors','distinct_threads','ignore_white','split_branches','optimize_fill_angles','route_fill','remove_overlap','reduce_travel',
        'reverse_for_travel','finish_regions','internal_trims','expand_strokes','custom_stitches','border_white'}
 
 
 def validate(settings):
     # Version-one presets written before border-connected removal retain their original behavior.
     if isinstance(settings,dict):settings={'border_white':False,'minimum_hole_area':0,'fill_underlay':'keep','satin_underlay':'keep',
-                                            'underlay_inset':0,'underlay_spacing':2,'branch_overlap':0,**settings}
+                                            'underlay_inset':0,'underlay_spacing':2,'branch_overlap':0,'group_colors':False,'distinct_threads':False,**settings}
     if not isinstance(settings,dict) or set(settings)!=set(NUMBERS)|set(CHOICES)|FLAGS:
         raise ValueError('Unsupported or incomplete conversion preset settings.')
     for key,(low,high,kind) in NUMBERS.items():

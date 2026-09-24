@@ -1266,3 +1266,14 @@ fill area to stored measurements. Tests cover separate, overlapping, three-way a
 touching objects, the empty case, guidance findings and a clean single-layer
 design, and the worker, dialog and PDF integration. Full Linux offscreen suite:
 1,851 passed. The thresholds are uncalibrated until fabric sew-outs exist.
+
+### Whole-palette thread planning and thread grouping
+
+Traced colors can now be matched to a chart as one assignment problem, keeping
+clearly different colors on different threads with minimum area-weighted color
+distance; nearly identical colors may share. The assignment solver is checked
+against brute force, and tests cover collisions, conflict-free equivalence with
+nearest matching, area priority, sharing and small-chart fallback. Optional thread
+grouping cuts thread changes (for example 5 → 1 for alternating separate regions)
+while preserving every overlapping pair's order and all stop/stage/group barriers.
+Full Linux offscreen suite: 1,866 passed. Greedy grouping is not guaranteed optimal.

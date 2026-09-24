@@ -22,6 +22,10 @@ test on scrap fabric before sewing a finished piece.
 - **Fabric for guidance** (medium woven, lightweight, knit, heavy, pile) flags
   stacked layers, dense cells, narrow satins and small fills against
   starting-point thresholds, without regenerating.
+- **Keep different artwork colors on different threads**: thread matching plans
+  the whole palette so clearly different colors never merge onto one thread.
+- **Group regions by thread to reduce color changes**: reorders regions that do
+  not overlap anything in between, keeping layer order.
 - Faster area measurement across conversion (full test suite about 27% faster).
 
 ## 0.2.0 — 2026-09-24

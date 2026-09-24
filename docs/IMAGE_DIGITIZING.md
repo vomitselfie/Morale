@@ -193,8 +193,8 @@ Next work, while retaining the broader parity ledger:
 
 1. Extend crotch-chord branch partitioning with continuous branch routing,
    junction patches for wide hubs and ambiguous rounded ends.
-2. Extend perceptual chart matching with palette-wide color planning and display/
-   gamut management, and improve region ordering, travel and overlap control.
+2. Add display/gamut management to thread matching, and consider cross-barrier
+   thread planning and globally optimal (not greedy) run grouping.
 3. Calibrate the fabric guidance thresholds with sew-outs, and add per-region
    density suggestions (for example, recommended spacing changes).
 4. Expand generated artwork and logo quality comparisons before external-file
@@ -328,7 +328,7 @@ with area above the threshold remain, and physical density analysis is still ope
 
 ## Needle-penetration density review
 
-After generating artwork, **Density review…** opens a map of actual stitch-command
+After generating artwork, **Density and coverage review…** opens a map of actual stitch-command
 endpoints in fixed 1 × 1 mm cells anchored at design origin. Counts include underlay,
 ties and repeated needle positions; jump, trim and stop commands add no penetrations.
 The report gives total penetrations, peak count per cell, occupied-cell count,
@@ -353,6 +353,27 @@ Traversal is bounded to two million cell pieces. If that budget is exceeded, the
 map and report explicitly say partial, while still reporting the full sewn-path
 length and the mapped subset separately. This estimates planar coverage, not
 thread consumption through fabric, bobbin usage or safe fabric-specific density.
+
+## Whole-palette thread planning and grouping
+
+**Keep different artwork colors on different threads** (on by default) plans all
+traced colors against the chosen chart together. Independent nearest matching can
+send two clearly different colors to one thread, merging their regions. Colors
+within an Oklab ×100 distance of 2 of each other may share a thread; every other
+color group receives a distinct thread by minimum-cost assignment (Hungarian
+algorithm), weighting each color's distance by its share of visible area plus a
+floor so small details still count. Without conflicts this equals nearest
+matching. If the chart has fewer threads than color groups, nearest matching is
+used and reported. Conversion checks name any color moved off its nearest thread
+and which thread it would have shared.
+
+**Group regions by thread to reduce color changes** (off by default, like travel
+reduction) reorders regions between stops, color breaks, appliqué stages, groups
+and manual stitches. A region moves earlier only past regions it does not overlap,
+using the same generated sewn footprints as travel ordering; complex objects keep
+their position. The result is kept only if it has fewer thread changes. Travel
+reduction then runs within the new thread runs, and the stitch-selection table
+follows the combined sewing order. Presets saved earlier keep both options off.
 
 ## Coverage layers and fabric guidance
 

@@ -163,7 +163,19 @@ def quality_text(report):
             name=' '.join(metadata.get(key,'') for key in ('brand','catalog_number','description')).strip()
             metric='Oklab ×100' if match.get('metric')=='oklab' else 'RGB'
             lines.append(f"{match['source_color']} → {match['color']} · {name or match['catalog']} · {metric} distance {match.get('distance',match['rgb_distance']):.1f}")
+            if match.get('adjusted'):
+                lines.append(f"  Kept distinct: nearest thread {match['nearest_color']} ({match['nearest_distance']:.1f}) is used by another artwork color.")
+            if match.get('shared_with'):
+                lines.append(f"  Shares this thread with nearly identical {', '.join(match['shared_with'])}.")
+        if any(match.get('planned') for match in report['thread_matches']):
+            lines.append('Palette planned as a whole: different artwork colors use different threads, minimizing total color distance.')
         lines.append('')
+    if report.get('color_grouping'):
+        grouping=report['color_grouping']
+        if grouping['after_changes']<grouping['before_changes']:
+            lines.extend([f"Thread grouping: {grouping['before_changes']} → {grouping['after_changes']} thread changes; {grouping['moved_regions']} regions moved.",
+                          'Only regions that overlap nothing in between were moved; overlapping regions keep their layer order.',''])
+        else:lines.extend(['Thread grouping: no reordering reduced thread changes without crossing an overlap or stop.',''])
     for order,region in enumerate(report['regions'],1):
         lines.append(f"Sew {order}: {region['name']} · {region['stitch_type']} · {region['stitches']} stitches")
         support=region.get('underlay')
