@@ -28,6 +28,15 @@ test on scrap fabric before sewing a finished piece.
   not overlap anything in between, keeping layer order.
 - Faster area measurement across conversion (full test suite about 27% faster).
 
+### Packaging and CI
+- Proper platform packages from `packaging/build.py`: Linux AppImage and tar.gz,
+  Windows installer and portable zip, macOS `.dmg`, each self-tested, with app
+  icons, version information and `.morale` file associations.
+- Double-clicking a `.morale` file (or passing it on the command line) opens it.
+- CI tests Ubuntu (Python 3.11–3.13), Windows and macOS on every push, installs
+  the Qt system libraries Ubuntu lacked, reports failures as annotations and
+  names a hung test. Releases verify the tag version and add a wheel and sdist.
+
 ## 0.2.0 — 2026-09-24
 
 Image-to-embroidery becomes the headline feature, with broader library, thread

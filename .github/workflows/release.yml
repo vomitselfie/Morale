@@ -2,71 +2,119 @@ name: Release
 on:
   push:
     tags: ['v*']
+  # Manual runs build and upload every package without publishing a release.
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Tag matches package version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: python packaging/build.py --check-tag "$GITHUB_REF_NAME"
+
   bundle:
+    needs: verify
+    name: Bundle (${{ matrix.name }})
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            name: linux-x86_64
-          - os: windows-latest
-            name: windows-x86_64
-          - os: macos-latest
-            name: macos-arm64
+          # The oldest supported Ubuntu keeps the AppImage's glibc requirement low.
+          - {os: ubuntu-22.04, name: linux-x86_64}
+          - {os: windows-latest, name: windows-x86_64}
+          - {os: macos-latest, name: macos-arm64}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     env:
       QT_QPA_PLATFORM: offscreen
+      PYTHONFAULTHANDLER: '1'
+      MORALE_TEST_PROGRESS: ${{ github.workspace }}/test-progress.txt
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      - run: python -m pip install -e ".[dev]"
-      - run: python -m pytest -q
-      - run: python -m PyInstaller --noconfirm --clean --windowed --onedir --name Morale --collect-data morale --add-data "LICENSE:." --add-data "THIRD_PARTY_NOTICES.md:." run_morale.py
-      - run: python scripts/check_bundle.py --output artifacts/bundle-self-test
-      - name: Archive (Linux)
-        if: runner.os == 'Linux'
-        run: tar -C dist -czf "Morale-${GITHUB_REF_NAME#v}-${{ matrix.name }}.tar.gz" Morale
-      - name: Archive (Windows)
-        if: runner.os == 'Windows'
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - if: runner.os == 'Linux'
+        uses: ./.github/actions/qt-linux-deps
+      - if: runner.os == 'Windows'
+        name: Inno Setup
         shell: pwsh
-        run: Compress-Archive -Path dist/Morale -DestinationPath "Morale-$($env:GITHUB_REF_NAME.TrimStart('v'))-${{ matrix.name }}.zip"
-      - name: Archive (macOS)
-        if: runner.os == 'macOS'
-        run: ditto -c -k --keepParent dist/Morale.app "Morale-${GITHUB_REF_NAME#v}-${{ matrix.name }}.zip"
-      - uses: actions/upload-artifact@v4
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+      - run: python -m pip install -e ".[dev]"
+      - name: Run tests
+        timeout-minutes: 35
+        run: python -m pytest -q --timeout=300 --junitxml=test-results.xml
+      - name: Report test results
+        if: always()
+        run: python scripts/ci_report.py --junit test-results.xml --progress test-progress.txt --label "${{ matrix.name }}"
+      - name: Build, self-test and package
+        run: python packaging/build.py --output dist/release
+      - uses: actions/upload-artifact@v7
         with:
           name: bundle-${{ matrix.name }}
-          path: Morale-*
+          path: dist/release/*
+          if-no-files-found: error
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: self-test-${{ matrix.name }}
           path: artifacts/bundle-self-test/
+          if-no-files-found: ignore
+
+  python-package:
+    needs: verify
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python -m pip install build
+      - run: python -m build --outdir dist/release
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bundle-python
+          path: dist/release/*
+          if-no-files-found: error
 
   release:
-    needs: bundle
-    runs-on: ubuntu-latest
+    needs: [bundle, python-package]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
-          path: bundles
+          path: release
           pattern: bundle-*
           merge-multiple: true
-      - name: Extract release notes from CHANGELOG
+      - name: Notes and checksums
+        id: notes
         run: |
           version="${GITHUB_REF_NAME#v}"
           awk -v v="$version" '/^## /{p = index($0, "## " v) == 1; next} p' CHANGELOG.md > notes.md
           test -s notes.md || echo "See CHANGELOG.md." > notes.md
-          (cd bundles && sha256sum Morale-* > SHA256SUMS)
-      - uses: softprops/action-gh-release@v2
+          cat packaging/INSTALL_NOTES.md >> notes.md
+          (cd release && sha256sum * > SHA256SUMS && cat SHA256SUMS)
+          # Versions with letters (0.3.0rc1, 0.3.0b2) are published as pre-releases.
+          if [[ "$version" =~ [a-z] ]]; then echo "prerelease=true" >> "$GITHUB_OUTPUT"; else echo "prerelease=false" >> "$GITHUB_OUTPUT"; fi
+      - uses: softprops/action-gh-release@v3
         with:
           name: Morale ${{ github.ref_name }}
           body_path: notes.md
-          files: bundles/*
+          prerelease: ${{ steps.notes.outputs.prerelease }}
+          files: release/*
+          fail_on_unmatched_files: true

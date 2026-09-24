@@ -5,5 +5,6 @@ __pycache__/
 build/
 dist/
 *.spec
+!packaging/morale.spec
 .venv/
 artifacts/

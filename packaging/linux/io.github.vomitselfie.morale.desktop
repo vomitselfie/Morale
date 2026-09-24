@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Morale
+GenericName=Embroidery Studio
+Comment=Digitize and edit machine embroidery designs
+Exec=Morale %f
+Icon=io.github.vomitselfie.morale
+Terminal=false
+Categories=Graphics;VectorGraphics;
+MimeType=application/x-morale-project;
+Keywords=embroidery;digitizing;stitch;PES;DST;EXP;
+StartupWMClass=Morale

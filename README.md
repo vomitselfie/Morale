@@ -628,33 +628,45 @@ and [the roadmap](docs/ROADMAP.md). V1 parity remains in progress.
 ## Test and package
 
 ```sh
+python -m pip install -e ".[dev]"
 python -m pytest
-python -m morale.compatibility --output docs/compatibility-report.json
-python -m PyInstaller --noconfirm --clean --windowed --onedir --name Morale --collect-data morale --add-data "LICENSE:." --add-data "THIRD_PARTY_NOTICES.md:." run_morale.py
-python scripts/check_bundle.py --output artifacts/bundle-self-test
+python packaging/build.py
 ```
 
 The test suite runs Qt with its offscreen platform plugin. Tests cover the engine,
 project validation, all 81 ordered writer conversion pairs, controls/pauses, a
-hand-encoded DST fixture, and native UI workflows. The generated report distinguishes
-synthetic round trips from unverified reader availability. Real machine sew-outs
-and externally produced golden files remain necessary evidence.
+hand-encoded DST fixture, and native UI workflows. An unexpected modal message
+box fails its test instead of waiting for a click. Real machine sew-outs and
+externally produced golden files remain necessary evidence;
+`python -m morale.compatibility --output docs/compatibility-report.json` refreshes
+the synthetic format report.
 
-Build on each target OS: PyInstaller does not cross-compile. Output is in `dist/`;
-distribute the entire `Morale` directory on Linux/Windows, or the `.app` bundle on
-macOS. The repository includes a manually triggered GitHub Actions build matrix.
-These are development bundles, not signed installers. Windows/macOS execution,
-signing, installers, and physical machine compatibility still need validation.
+`packaging/build.py` builds for the platform it runs on (PyInstaller does not
+cross-compile). It renders the icons from the logo, bundles the app with
+`packaging/morale.spec`, runs the bundle's self-test, and writes packages to
+`dist/release/`:
 
-The bundle check launches the built executable with `--self-test` and requires a
-new output directory. It exercises an offscreen native window, project save/reopen,
-generation and raster/SVG tracing subprocesses, artwork Undo, and nine-format
-export/reopen. It leaves a JSON report, generated fixtures, previews and worker
-logs. The manually triggered build matrix runs this check and retains the report
-with each platform bundle, including failed runs. A successful smoke test confirms
-those packaged workflows; it does not establish full parity or physical sewing
-fidelity. To run the same workflow from source, use
-`python -m morale --self-test artifacts/source-self-test`.
+| Platform | Packages |
+| --- | --- |
+| Linux | AppImage, plus a tar.gz with desktop-entry, icon and MIME files under `share/` |
+| Windows | Inno Setup installer (per-user by default, optional `.morale` association) and a portable zip |
+| macOS | Ad-hoc signed `Morale.app` in a `.dmg`, with `.morale` document type |
+
+The Windows installer needs [Inno Setup 6](https://jrsoftware.org/isinfo.php);
+pass `--no-installer` to build only the zip. Builds are not signed with a
+publisher certificate, so Windows SmartScreen and macOS Gatekeeper ask users to
+confirm the first launch. The self-test launches the built executable with
+`--self-test`: an offscreen window, project save/reopen, generation and tracing
+subprocesses, artwork Undo, and nine-format export/reopen, leaving a report in
+`artifacts/bundle-self-test/`. To run the same checks from source, use
+`python -m morale --self-test NEW_FOLDER`.
+
+### Continuous integration and releases
+
+`.github/workflows/ci.yml` runs the tests on every push: Ubuntu with Python
+3.11–3.13, and Windows and macOS with Python 3.12. Failures appear as annotations
+on the run; if a run is killed, the last test that started is named. Each test
+has a five-minute limit.
 
 To publish a release, update the version in `pyproject.toml` and
 `morale/__init__.py`, add a `## X.Y.Z` section to [CHANGELOG.md](CHANGELOG.md),
@@ -665,9 +677,13 @@ git tag -a vX.Y.Z -m "Morale X.Y.Z"
 git push origin master vX.Y.Z
 ```
 
-The tag triggers `.github/workflows/release.yml`, which tests, builds and
-self-tests Linux, Windows and macOS bundles, then creates a GitHub Release with
-that changelog section, the archives and `SHA256SUMS`.
+The tag triggers `.github/workflows/release.yml`. It checks that the tag matches
+the package version, tests and packages on all three platforms (Linux on Ubuntu
+22.04 for wider glibc compatibility), builds the Python wheel and sdist, and
+publishes a GitHub Release with that changelog section, install notes, every
+package and `SHA256SUMS`. Versions containing letters (`0.3.0rc1`) become
+pre-releases. Running the workflow manually builds and uploads the packages as
+run artifacts without publishing.
 
 ## Architecture and contributing
 

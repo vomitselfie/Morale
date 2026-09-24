@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 import uuid
 
-from PySide6.QtCore import Qt, QTimer, QMimeData, QStandardPaths
+from PySide6.QtCore import Qt, QTimer, QMimeData, QStandardPaths, QObject, QEvent
 from PySide6.QtGui import QAction, QActionGroup, QColor, QKeySequence, QIcon, QPixmap
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QListWidget, QListWidgetItem, QFormLayout, QDoubleSpinBox,
@@ -2054,5 +2054,35 @@ def main():
     app.setStyle("Fusion")
     window = MainWindow(Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation)) / "recovery", background_generation=True)
     window.show()
-    QTimer.singleShot(0, lambda: window.recover_session(quiet=True))
+    opener = FileOpenFilter(window)
+    app.installEventFilter(opener)
+    path = startup_file(sys.argv)
+    if path:
+        # A file opened from the desktop takes priority; recovery stays in the File menu.
+        QTimer.singleShot(0, lambda: window.open_path(path))
+    else:
+        QTimer.singleShot(0, lambda: window.recover_session(quiet=True))
     sys.exit(app.exec())
+
+
+def startup_file(argv):
+    """The design passed by a file association or command line, if any."""
+    for argument in argv[1:]:
+        if not argument.startswith("-") and Path(argument).is_file():
+            return argument
+    return None
+
+
+class FileOpenFilter(QObject):
+    """Open designs that macOS delivers as file-open events (Finder, Dock)."""
+
+    def __init__(self, window):
+        super().__init__(window)
+        self.window = window
+
+    def eventFilter(self, watched, event):
+        if event.type() == QEvent.Type.FileOpen and event.file():
+            if self.window.confirm_discard():
+                self.window.open_path(event.file())
+            return True
+        return super().eventFilter(watched, event)
