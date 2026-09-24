@@ -702,7 +702,10 @@ run artifacts without publishing.
 - `morale/engine.py`: Qt-independent geometry-to-stitch generation.
 - `morale/formats.py`: pyembroidery adapters and guarded exports.
 - `morale/canvas.py`: native drawing, hit testing, tools, and playback rendering.
-- `morale/app.py`: desktop workspace, editing commands, and file workflows.
+- `morale/app.py`: main window core: previews, selection, properties, Undo, view and playback.
+- `morale/window_ui.py`, `window_files.py`, `window_editing.py`, `window_artwork.py`:
+  the window's menus and panels, file workflows, editing commands, and artwork,
+  lettering and thread tools, as mixins of the main window.
 - `morale/smooth_trace.py`, `raster_trace.py`: raster color tracing to vector regions.
 - `morale/auto_digitize.py`: physical-width running/satin/fill suggestions.
 - `morale/trace_dialog.py`: the conversion workspace and its cancellable worker.

@@ -38,6 +38,10 @@ test on scrap fabric before sewing a finished piece.
   cancellable progress dialog, so large machine files no longer freeze the
   window.
 
+### Fixes
+- **File → Split for multiple hoopings** opened the wrong dialog and failed: two
+  different `HoopDialog` classes shared one name in the main window module.
+
 ### Packaging and CI
 - Proper platform packages from `packaging/build.py`: Linux AppImage and tar.gz,
   Windows installer and portable zip, macOS `.dmg`, each self-tested, with app

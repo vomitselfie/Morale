@@ -1,3 +1,4 @@
+from PySide6.QtWidgets import QFileDialog
 import os
 os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
 from copy import deepcopy
@@ -133,7 +134,7 @@ def test_saving_selected_motif_is_distinct_from_captured_motif(tmp_path,monkeypa
         window.select(obj.id)
         window.captured_motif=capture_motif(DesignObject(name='Other',kind='rectangle'))
         path=tmp_path/'selected.mmotif'
-        monkeypatch.setattr(module.QFileDialog,'getSaveFileName',lambda *args:(str(path),''))
+        monkeypatch.setattr(QFileDialog,'getSaveFileName',lambda *args:(str(path),''))
         window.save_custom_motif(True)
         assert load_motif(path)['name']=='Corner'
         path=tmp_path/'captured.mmotif'

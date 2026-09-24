@@ -1,3 +1,4 @@
+from PySide6.QtWidgets import QFileDialog
 import os
 os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
 
@@ -94,7 +95,7 @@ def test_native_comparison_and_cancel_leave_project_unchanged(tmp_path,monkeypat
         original=window.project.dumps()
         path=tmp_path/'sample.pes'
         export_machine(window.project,path)
-        monkeypatch.setattr(module.QFileDialog,'getOpenFileName',lambda *args: (str(path),''))
+        monkeypatch.setattr(QFileDialog,'getOpenFileName',lambda *args: (str(path),''))
         seen=[]
         def close(dialog):
             seen.append(dialog.report)
@@ -105,7 +106,7 @@ def test_native_comparison_and_cancel_leave_project_unchanged(tmp_path,monkeypat
         monkeypatch.setattr(ComparisonDialog,'exec',close)
         window.compare_machine_file()
         assert seen and window.project.dumps()==original and not window.history
-        monkeypatch.setattr(module.QFileDialog,'getOpenFileName',lambda *args: ('',''))
+        monkeypatch.setattr(QFileDialog,'getOpenFileName',lambda *args: ('',''))
         window.compare_machine_file()
         assert len(seen)==1
     finally:

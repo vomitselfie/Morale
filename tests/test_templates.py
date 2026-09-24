@@ -1,3 +1,4 @@
+from PySide6.QtWidgets import QFileDialog
 import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import shutil
@@ -119,7 +120,7 @@ def test_native_export_and_cancel_preserve_design(tmp_path,monkeypatch):
         window.placement_template()
         assert not list(tmp_path.iterdir())
         monkeypatch.setattr(TemplateDialog,'exec',lambda self: QDialog.DialogCode.Accepted)
-        monkeypatch.setattr(module.QFileDialog,'getSaveFileName',lambda *args: (str(tmp_path/'placement'),''))
+        monkeypatch.setattr(QFileDialog,'getSaveFileName',lambda *args: (str(tmp_path/'placement'),''))
         window.placement_template()
         assert (tmp_path/'placement.pdf').exists()
         assert window.project.dumps()==before and not window.history
