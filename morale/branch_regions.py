@@ -251,7 +251,101 @@ def _score(obj,pieces):
     return sum(area(outline_path(piece.rings())) for piece in columns)/total,len(columns)
 
 
-def split_branches(project):
+def _satin_column(piece):
+    found,_=column_pairs(piece)
+    if found is None:found=curved_pairs(piece)
+    return found is not None and found[1]>=.8
+
+
+def _shared_edges(pieces):
+    """Cut segments shared by two pieces, including partial (T-junction) overlaps.
+
+    Edges are bucketed by their supporting line; opposite-running collinear
+    edges in different pieces share the overlap of their extents.
+    """
+    buckets={}
+    for index,piece in enumerate(pieces):
+        ring=piece.rings()[0]
+        for a,b in zip(ring,ring[1:]+ring[:1]):
+            length=math.dist(a,b)
+            if length<1e-6:continue
+            u=((b[0]-a[0])/length,(b[1]-a[1])/length)
+            # Canonical direction so opposite edges share a line key.
+            if u[0]<-1e-9 or (abs(u[0])<=1e-9 and u[1]<0):u=(-u[0],-u[1])
+            offset=a[0]*u[1]-a[1]*u[0]
+            key=(round(u[0],4),round(u[1],4),round(offset,4))
+            buckets.setdefault(key,[]).append((index,a,b,u))
+    joins=[]
+    for edges in buckets.values():
+        for n,(i,a,b,u) in enumerate(edges):
+            for j,c,d,_ in edges[n+1:]:
+                if i==j:continue
+                s=sorted((a[0]*u[0]+a[1]*u[1],b[0]*u[0]+b[1]*u[1]))
+                r=sorted((c[0]*u[0]+c[1]*u[1],d[0]*u[0]+d[1]*u[1]))
+                low,high=max(s[0],r[0]),min(s[1],r[1])
+                if high-low<.05:continue
+                # Points on the shared line at the overlap extents, taken from edge a-b.
+                base=a[0]*u[0]+a[1]*u[1]
+                p=(a[0]+(low-base)*u[0],a[1]+(low-base)*u[1]);q=(a[0]+(high-base)*u[0],a[1]+(high-base)*u[1])
+                joins.append((min(i,j),max(i,j),p,q))
+    return joins
+
+
+def _extend_across(ring,neighbor,p,q,overlap):
+    """Replace cut edge p-q of ``ring`` with a band reaching into ``neighbor``.
+
+    Qt booleans are unreliable when the band meets the cut ends exactly, so
+    the extension is built directly. Each corner is pulled along the cut when
+    the plain offset would leave the neighbor (for example at a crotch).
+    """
+    ring,i=_locate(ring,p);ring,j=_locate(ring,q)
+    if i is None or j is None:return None
+    if (i+1)%len(ring)!=j:
+        if (j+1)%len(ring)!=i:return None
+        p,q,i,j=q,p,j,i
+    length=math.dist(p,q);u=((q[0]-p[0])/length,(q[1]-p[1])/length)
+    normal=(u[1],-u[0]);middle=((p[0]+q[0])/2,(p[1]+q[1])/2)
+    if _contains(ring,(middle[0]+normal[0]*1e-4,middle[1]+normal[1]*1e-4)):normal=(-normal[0],-normal[1])
+    def corner(origin,direction):
+        for slide in (0,.5,1,1.5):
+            if slide*overlap>length/3:break
+            point=(origin[0]+normal[0]*overlap+direction[0]*slide*overlap,
+                   origin[1]+normal[1]*overlap+direction[1]*slide*overlap)
+            if _contains(neighbor,point) and _interior_chord(neighbor,origin,point):return point
+        return None
+    a,b=corner(p,u),corner(q,(-u[0],-u[1]))
+    if a is None or b is None or not _interior_chord(neighbor,a,b):return None
+    return ring[:i+1]+[a,b]+ring[i+1:] if i<j else ring[:i+1]+[a,b]
+
+
+def _overlap_joins(obj,pieces,overlap):
+    """Extend one piece across each shared cut so satins do not part under pull.
+
+    The later piece in sewing order is extended first; if that breaks its satin
+    fit, the earlier piece is tried, otherwise the join is left exact.
+    """
+    joins=_shared_edges(pieces)
+    grouped={}
+    for i,j,p,q in joins:grouped.setdefault((i,j),[]).append((p,q))
+    if not overlap:return pieces,len(grouped),0
+    original=[piece.rings()[0] for piece in pieces]
+    pieces=list(pieces);overlapped=0
+    for (i,j),edges in grouped.items():
+        if len(edges)!=1:continue
+        (p,q),=edges
+        for target,other in ((j,i),(i,j)):
+            ring=_extend_across(_clean(pieces[target].rings()[0]),original[other],p,q,overlap)
+            if ring is None or len(ring)>2000:continue
+            try:candidate=replace_contours(pieces[target],[ring])
+            except ValueError:continue
+            if _satin_column(candidate) or not _satin_column(pieces[target]):
+                pieces[target]=candidate;overlapped+=1;break
+    return pieces,len(grouped),overlapped
+
+
+def split_branches(project,join_overlap=0):
+    if isinstance(join_overlap,bool) or not isinstance(join_overlap,(int,float)) or not 0<=join_overlap<=1:
+        raise ValueError('Branch join overlap must be from 0 to 1 mm.')
     Project.loads(project.dumps());result=deepcopy(project);result.objects=[];splits=[]
     for index,obj in enumerate(project.objects):
         pieces=None
@@ -268,8 +362,9 @@ def split_branches(project):
                 # Prefer the most column coverage, then the fewest pieces.
                 if scored:pieces=max(scored,key=lambda s:(round(s[0][0],3),-len(s[1])))[1]
         if pieces and len(result.objects)+len(pieces)+len(project.objects)-index-1<=500:
+            pieces,joins,overlapped=_overlap_joins(obj,pieces,join_overlap)
             for part,piece in enumerate(pieces,1):piece.name=f'{obj.name} · branch {part}'[:200]
-            splits.append({'source_region':index,'pieces':len(pieces)})
+            splits.append({'source_region':index,'pieces':len(pieces),'joins':joins,'overlapped_joins':overlapped})
             result.objects.extend(pieces)
         else:result.objects.append(deepcopy(obj))
     Project.loads(result.dumps())

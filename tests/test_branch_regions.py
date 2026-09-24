@@ -149,3 +149,44 @@ def test_stem_is_cut_from_broad_fill_without_slivers(rotation):
     assert notes and len(split.objects)==2
     _,decisions=choose_stitches(split)
     assert sorted(d['selected'] for d in decisions)==['fill','satin']
+
+
+def _on_or_inside(ring,point):
+    from morale.branch_regions import _contains
+    for a,b in zip(ring,ring[1:]+ring[:1]):
+        dx,dy=b[0]-a[0],b[1]-a[1];length=dx*dx+dy*dy
+        t=max(0,min(1,((point[0]-a[0])*dx+(point[1]-a[1])*dy)/length)) if length else 0
+        if math.hypot(a[0]+t*dx-point[0],a[1]+t*dy-point[1])<1e-6:return True
+    return _contains(ring,point)
+
+
+@pytest.mark.parametrize('name,segments,width',[
+    ('Y',_radial(3,offset=math.pi/2),3),('X',_radial(4,offset=math.pi/5),3),
+    ('star',_radial(5,length=9),2.5),('K',[[(0,-10),(0,10)],[(0,1),(7,-9)],[(2,-1),(7,9)]],2.2)])
+@pytest.mark.parametrize('rotation',[0,17,40])
+def test_branch_joins_overlap_inside_the_artwork(name,segments,width,rotation):
+    source=Project(objects=[_stroked(segments,width,rotation)])
+    exact,exact_notes=split_branches(source)
+    overlapped,notes=split_branches(source,.3)
+    assert exact_notes[0]['overlapped_joins']==0 and exact_notes[0]['joins']==notes[0]['joins']>=1
+    assert notes[0]['overlapped_joins']==notes[0]['joins']
+    outline=source.objects[0].rings()[0]
+    assert all(_on_or_inside(outline,p) for o in overlapped.objects for p in o.rings()[0])
+    extra=sum(area(outline_path(o.rings())) for o in overlapped.objects)-sum(area(outline_path(o.rings())) for o in exact.objects)
+    assert 0<extra<=.3*9*notes[0]['joins']
+    _,decisions=choose_stitches(overlapped)
+    assert all(d['selected']=='satin' for d in decisions),decisions
+
+
+def test_overlapped_stem_export_stays_inside_silhouette(tmp_path):
+    from morale.formats import export_machine,import_machine
+    source=Project(objects=[tee()]);split,notes=split_branches(source,.5)
+    assert notes[0]['overlapped_joins']==1
+    project,_=choose_stitches(split);path=tmp_path/'branch.dst';export_machine(project,path)
+    sewn=[s for b in generate(import_machine(path).project) for s in b.stitches if s.command=='stitch']
+    assert sewn and all((-6.1<=s.x<=6.1 and -12.1<=s.y<=-9.5) or (-1.3<=s.x<=1.3 and -9.7<=s.y<=12.1) for s in sewn)
+
+
+@pytest.mark.parametrize('value',[-.1,1.5,True,'0.3',float('nan')])
+def test_invalid_join_overlap_is_rejected(value):
+    with pytest.raises(ValueError):split_branches(Project(objects=[tee()]),value)

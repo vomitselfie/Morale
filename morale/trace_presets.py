@@ -7,7 +7,7 @@ import tempfile
 
 
 NUMBERS={'colors':(1,16,int),'resolution':(64,1024,int),'minimum_region':(1,100,int),
-         'smoothing':(0,1,float),'overlap_allowance':(0,2,float),'minimum_fill_area':(0,25,float),'minimum_hole_area':(0,25,float),
+         'smoothing':(0,1,float),'overlap_allowance':(0,2,float),'branch_overlap':(0,1,float),'minimum_fill_area':(0,25,float),'minimum_hole_area':(0,25,float),
          'trim_threshold':(.5,50,float),'fill_spacing':(.2,5,float),'satin_spacing':(.2,5,float),
          'stitch_length':(.5,6,float),'pull_compensation':(0,2,float),'underlay_inset':(0,3,float),'underlay_spacing':(.5,10,float)}
 CHOICES={'method':{'smooth','pixels'},'stitch_mode':{'auto','fill'},'palette_metric':{'rgb','oklab'},
@@ -21,7 +21,7 @@ FLAGS={'ignore_white','split_branches','optimize_fill_angles','route_fill','remo
 def validate(settings):
     # Version-one presets written before border-connected removal retain their original behavior.
     if isinstance(settings,dict):settings={'border_white':False,'minimum_hole_area':0,'fill_underlay':'keep','satin_underlay':'keep',
-                                            'underlay_inset':0,'underlay_spacing':2,**settings}
+                                            'underlay_inset':0,'underlay_spacing':2,'branch_overlap':0,**settings}
     if not isinstance(settings,dict) or set(settings)!=set(NUMBERS)|set(CHOICES)|FLAGS:
         raise ValueError('Unsupported or incomplete conversion preset settings.')
     for key,(low,high,kind) in NUMBERS.items():

@@ -99,3 +99,20 @@ def test_underlay_presets_native_options_and_legacy_defaults(dialog,tmp_path):
     assert dialog.underlay_choices['satin_underlay'].currentData()=='keep'
     assert dialog.stitch_settings['underlay_inset'].value()==0
     assert dialog.stitch_settings['underlay_spacing'].value()==2
+
+
+def test_branch_join_overlap_preset_worker_option_and_legacy_default(dialog,tmp_path):
+    assert dialog.branch_overlap.value()==.3 and not dialog.branch_overlap.isEnabled()
+    dialog.branching.setChecked(True);assert dialog.branch_overlap.isEnabled()
+    dialog.branch_overlap.setValue(.6)
+    path=tmp_path/'joins.json';save_preset(path,dialog.preset_settings())
+    target=TraceDialog('other.png')
+    try:
+        target.apply_preset(load_preset(path))
+        assert target.branch_overlap.value()==.6 and target.branch_overlap.isEnabled()
+        target.runner.load=lambda _:None;target.generate()
+        assert target.runner.options['split_branches'] and target.runner.options['branch_overlap']==.6
+        # Presets saved before join overlap keep their original exact joins.
+        legacy=target.preset_settings();legacy.pop('branch_overlap')
+        target.apply_preset(legacy);assert target.branch_overlap.value()==0
+    finally:target.close()

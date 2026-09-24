@@ -196,6 +196,7 @@ def worker_main(args):
         overrides=settings.pop('stitch_overrides',{})
         seams=settings.pop('band_seams',{})
         branching=settings.pop('split_branches',False)
+        branch_overlap=settings.pop('branch_overlap',0)
         finishing=settings.pop('finish_regions',False)
         trim_threshold=settings.pop('trim_threshold',5)
         internal_trims=settings.pop('internal_trims',False)
@@ -231,7 +232,7 @@ def worker_main(args):
         project,stats['detail_filter']=filter_small_fills(project,minimum_fill_area)
         if branching:
             from .branch_regions import split_branches
-            project,stats['branch_splits']=split_branches(project)
+            project,stats['branch_splits']=split_branches(project,branch_overlap)
         from .auto_digitize import choose_stitches
         project,stats['stitch_decisions']=choose_stitches(project,stitch_mode,overrides,seams)
         from .trace_stitch_settings import apply_stitch_settings

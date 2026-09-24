@@ -9,6 +9,9 @@ test on scrap fabric before sewing a finished piece.
 - **Split suitable branching shapes** now cuts at branch crotches along short
   interior chords, so Y, X, star and K forms at any angle become satin columns
   and stems separate cleanly from broad fills.
+- **Branch join overlap** (default 0.3 mm) extends one piece across each branch
+  cut, inside the artwork, so satin columns overlap instead of just touching.
+  Saved in presets; older presets keep exact joins.
 - Faster area measurement across conversion (full test suite about 27% faster).
 
 ## 0.2.0 — 2026-09-24

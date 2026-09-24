@@ -65,8 +65,9 @@ some export/dialog operations can still pause the interface.
   order and reports the distance saved within each thread-color run. Match traced
   colors to a built-in palette or your CSV thread chart before applying them.
   **Split suitable branching shapes** cuts Y, X, star and letter-like forks at
-  their crotches into satin columns, leaving broad areas as fill. Join treatment
-  and photographic digitizing remain pending. See [image digitizing](docs/IMAGE_DIGITIZING.md).
+  their crotches into satin columns, leaving broad areas as fill. **Branch join
+  overlap** (default 0.3 mm) extends one piece across each cut so neighboring
+  columns overlap instead of just meeting. Photographic digitizing remains pending. See [image digitizing](docs/IMAGE_DIGITIZING.md).
 - Embedded PNG/JPEG/BMP/WebP reference images for manual tracing, with numeric
   positioning, sizing, rotation, opacity, visibility, removal and undo.
 

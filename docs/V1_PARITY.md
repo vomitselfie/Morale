@@ -1234,3 +1234,13 @@ Traced 25 mm raster versions give the same result in 0.3–1.6 s per region. The
 shared scanline area measurement now sweeps active edges, reducing the full
 Linux offscreen suite from 126 to 92 seconds (1,818 passed). Join overlap, tie
 treatment and sew-out validation of bent satins through junctions remain open.
+
+### Branch join overlap
+
+Split branches can now overlap at their joins (0–1 mm; dialog default 0.3 mm,
+legacy presets 0). Every join of the Y, X, star and K fixtures at 0°, 17° and 40°
+is overlapped, all pieces stay within the source outline and remain satin, and
+the added area is bounded by the overlap times the cut length. T-junction partial
+contacts are detected, and an overlapped tee exported to DST stays inside its
+silhouette. Full Linux offscreen suite: 1,837 passed. Physical join behaviour
+under pull and tie treatment at joins remain unvalidated.

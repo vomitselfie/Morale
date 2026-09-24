@@ -104,7 +104,21 @@ candidate with the most satin area wins, then the fewest pieces; running-stitch
 slivers earn no credit. Arms may continue through a junction as one bent satin
 rather than meeting a separate junction patch. T, Y, X, five-arm star, K and
 leaf-with-stem fixtures are covered at oblique rotations, both as polygons and
-traced antialiased raster artwork. This is not a medial-axis router. Splits retain the source coverage within
+traced antialiased raster artwork. This is not a medial-axis router.
+
+**Branch join overlap** (0–1 mm, 0.3 mm by default in the dialog) extends one
+piece of each shared cut into its neighbor so adjacent columns overlap rather
+than abut. Shared cuts are found from collinear, opposite-running piece edges,
+including partial T-junction contacts. The cut edge p–q is replaced by a band
+p–p′–q′–q offset into the neighbor; a corner that would leave the neighbor (for
+example at a crotch) slides along the cut in steps of half the overlap, up to a
+third of the cut length. Extensions are built without Qt booleans, which dropped
+whole pieces when the band met cut ends exactly, and always stay inside the
+original artwork. The later piece in sewing order is extended first; if that
+breaks its satin fit the earlier piece is tried, otherwise the join stays exact.
+The preview status reports how many joins were overlapped. Zero keeps exact
+joins, as do presets saved before this setting. Overlap is geometric, not a
+fabric-tested value; tie-offs at joins follow the normal finishing settings. Splits retain the source coverage within
 0.02 square millimeters, remove clipping tails and avoid area overlap. The pass
 is bounded to twelve cuts and twenty-four pieces per region, within the project
 object limit. Existing usable columns, holes, groups and explicit stage/control
@@ -177,8 +191,8 @@ travel equivalence or physical sewing quality.
 
 Next work, while retaining the broader parity ledger:
 
-1. Extend crotch-chord branch partitioning with continuous branch routing, join
-   overlap/tie treatments, junction patches for wide hubs and ambiguous rounded ends.
+1. Extend crotch-chord branch partitioning with continuous branch routing,
+   junction patches for wide hubs and ambiguous rounded ends.
 2. Extend perceptual chart matching with palette-wide color planning and display/
    gamut management, and improve region ordering, travel and overlap control.
 3. Extend the initial conversion measurements with local density/overlap maps

@@ -99,6 +99,11 @@ class TraceDialog(QDialog):
         self.branching=QCheckBox('Split suitable branching shapes into editable pieces')
         self.branching.setToolTip('Try separate columns at branch joins. Inspect joins after generation. Changing this setting clears region overrides.')
         form.addRow(self.branching)
+        self.branch_overlap=QDoubleSpinBox();self.branch_overlap.setRange(0,1);self.branch_overlap.setSingleStep(.1)
+        self.branch_overlap.setValue(.3);self.branch_overlap.setSuffix(' mm');self.branch_overlap.setEnabled(False)
+        self.branch_overlap.setSpecialValueText('Exact joins')
+        self.branch_overlap.setToolTip('Extend one piece across each branch cut so satin columns overlap instead of just meeting. Extensions stay inside the artwork. Zero leaves exact joins, which can gap under fabric pull.')
+        form.addRow('Branch join overlap',self.branch_overlap)
         form=travel_form
         self.optimize_angles=QCheckBox('Choose fill angles with less travel')
         self.optimize_angles.setToolTip('Compare generated travel, including transfers to neighboring objects. Changes the visual grain of fill; inspect the preview. Final angles remain editable.')
@@ -276,6 +281,8 @@ class TraceDialog(QDialog):
         self.custom_stitches.toggled.connect(self.invalidate_preview)
         self.trace_underlay.currentIndexChanged.connect(self.invalidate_preview)
         self.branching.toggled.connect(self.invalidate)
+        self.branching.toggled.connect(self.branch_overlap.setEnabled)
+        self.branch_overlap.valueChanged.connect(self.invalidate)
         self.optimize_angles.toggled.connect(self.invalidate_preview)
         self.route_fill.toggled.connect(self.invalidate_preview)
         self.remove_overlap.toggled.connect(self.overlap_allowance.setEnabled)
@@ -294,7 +301,7 @@ class TraceDialog(QDialog):
             'method':self.method,'stitch_mode':self.stitch_mode,'colors':self.colors,'resolution':self.resolution,
             'minimum_region':self.minimum,'smoothing':self.smoothing,'palette_metric':self.palette_metric,
             'color_metric':self.color_metric,'underlay':self.trace_underlay,'ignore_white':self.white,'border_white':self.border_white,
-            'split_branches':self.branching,'optimize_fill_angles':self.optimize_angles,'route_fill':self.route_fill,
+            'split_branches':self.branching,'branch_overlap':self.branch_overlap,'optimize_fill_angles':self.optimize_angles,'route_fill':self.route_fill,
             'remove_overlap':self.remove_overlap,'overlap_allowance':self.overlap_allowance,'minimum_fill_area':self.minimum_fill_area,'minimum_hole_area':self.minimum_hole_area,
             'reduce_travel':self.route,'reverse_for_travel':self.reverse_travel,'finish_regions':self.finishing,
             'internal_trims':self.internal_trims,'trim_threshold':self.trim_threshold,'expand_strokes':self.expand_strokes,
@@ -330,6 +337,7 @@ class TraceDialog(QDialog):
         self.border_white.setEnabled(self.white.isChecked())
         self.reverse_travel.setEnabled(self.route.isChecked())
         self.overlap_allowance.setEnabled(self.remove_overlap.isChecked())
+        self.branch_overlap.setEnabled(self.branching.isChecked())
         self.trim_threshold.setEnabled(self.finishing.isChecked());self.internal_trims.setEnabled(self.finishing.isChecked())
         for control in [*self.stitch_settings.values(),self.trace_underlay,*self.underlay_choices.values()]:control.setEnabled(self.custom_stitches.isChecked())
         self.method_changed()
@@ -393,6 +401,7 @@ class TraceDialog(QDialog):
         self.runner.options['color_metric']=self.color_metric.currentData()
         self.runner.options['band_seams']=dict(self.seams)
         self.runner.options['split_branches']=self.branching.isChecked()
+        self.runner.options['branch_overlap']=self.branch_overlap.value()
         self.runner.options.update(finish_regions=self.finishing.isChecked(),trim_threshold=self.trim_threshold.value())
         self.runner.options['internal_trims']=self.internal_trims.isChecked()
         self.runner.options['reverse_for_travel']=self.reverse_travel.isChecked()
@@ -472,7 +481,9 @@ class TraceDialog(QDialog):
             if routing:
                 detail+=f" Travel from artwork origin: {routing['before_mm']:.1f} → {routing['after_mm']:.1f} mm."
                 if routing.get('status')=='rejected':detail+=' Original route retained: '+routing.get('reason','Candidate validation failed.')
-            if stats.get('branch_splits'): detail+=f" Split {len(stats['branch_splits'])} branching regions; inspect joins."
+            if stats.get('branch_splits'):
+                splits=stats['branch_splits'];joins=sum(s.get('joins',0) for s in splits);overlapped=sum(s.get('overlapped_joins',0) for s in splits)
+                detail+=f" Split {len(splits)} branching regions; {overlapped} of {joins} joins overlapped. Inspect joins."
             if self.quality: detail+=f" Conversion checks: {self.quality['review_regions']} regions to review."
             self.status.setText(f"{len(self.project.objects)} editable regions · {info['stitches']:,} stitches · {stats['resolution'][0]} × {stats['resolution'][1]} sampled pixels. {detail} Inspect small details and stitch routing before sewing.")
             self.buttons.button(QDialogButtonBox.StandardButton.Ok).setEnabled(True)
