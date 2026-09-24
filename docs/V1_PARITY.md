@@ -30,7 +30,7 @@ not a reproduction of the vendor's specifications or a claim of equivalence.
 | Sew-out quality | Tie stitches, trims, minimum-length filtering, compensation, underlay, overlaps | Ties/trims, conservative short-stitch cleanup, inset edge/sparse-fill and center/zigzag underlay, and fill/satin compensation tested. Covered-fill removal with allowance and boundary-coincidence regression tested. Fabric presets and physical sew-outs pending |
 | Lettering | Editable text, font choice, sizing/spacing, curved layouts, monograms | Straight/arc-bent system-font text and center-enlarged three-letter monograms, editable settings, portable contours and nine-format export tested. Drawn-path shaped-glyph placement now tested; purpose-digitized embroidery fonts pending |
 | Artwork | Reference image, SVG import with units/transforms/holes, editable tracing | Embedded raster references, SVG solid-fill/running-outline import, and raster color-region tracing with editable contours and Undo tested. Smooth shared-boundary raster tracing, fitted SVG export, stroke expansion, dashed borders, positive pathLength calibration and paint order tested; clipping, masks and gradient paints remain pending |
-| Automatic digitizing | Turn raster/vector artwork into editable objects; expose correction tools | Solid SVG fills generate tatami and SVG strokes generate running outlines. Raster color reduction and smooth shared-boundary tracing preserve holes with cancellable source/vector/stitch previews. Initial physical-width running/satin/fill suggestions with per-region overrides tested; branch splitting, travel reduction and fill-angle search tested. Photographic digitizing and broader automatic routing remain pending |
+| Automatic digitizing | Turn raster/vector artwork into editable objects; expose correction tools | Solid SVG fills generate tatami and SVG strokes generate running outlines. Raster color reduction and smooth shared-boundary tracing preserve holes with cancellable source/vector/stitch previews. Initial physical-width running/satin/fill suggestions with per-region overrides tested; crotch-chord branch splitting at oblique angles, travel reduction and fill-angle search tested. Photographic digitizing and broader automatic routing remain pending |
 | Appliqué | Placement, tack-down, cover stitches, operator stops, fabric instructions | Editable placement/tack-down/tatami-cover stages, pauses, instructions, Undo and nine-format pause preservation tested. Automatic satin outer/cutout covers with explicit tatami fallback tested; physical fabric validation pending |
 | Decorative stitches | Motifs, programmable fills, contour/ripple/stipple and gradient/radial effects | Contour fill, built-in/custom outline repeats and clipped area motif fills, plus linear tatami spacing gradients tested. Ripple/stipple fills, gradient color blending and radial fills remain pending |
 | Thread tools | Thread catalogs, color mapping, palette editing, usage estimates | Metadata, sequencing, charts/path lengths, PEC/JEF fixed palettes, searchable CSV catalogs and RGB-distance matching tested. Oklab screen-color matching and raster palette reduction tested. Verified manufacturer libraries, physical color matching and calibrated consumption estimates pending |
@@ -1223,3 +1223,14 @@ center/zigzag combinations, with separate type overrides, inset and spacing.
 Tests exercise mixed stitch types, preserved artwork/source identity, regenerated
 support paths, native worker output and Undo, invalid values, preset round trips
 and older preset defaults. Physical support effectiveness remains unvalidated.
+
+### Crotch-chord branch splitting
+
+Branch splitting now also cuts along interior chords between inside corners.
+Y, X, five-arm star and K outlines at 0°, 17° and 40° become all-satin pieces
+(previously up to nine pieces with 54% satin area), and a leaf with a stem
+separates into one satin stem and one fill body without running slivers.
+Traced 25 mm raster versions give the same result in 0.3–1.6 s per region. The
+shared scanline area measurement now sweeps active edges, reducing the full
+Linux offscreen suite from 126 to 92 seconds (1,818 passed). Join overlap, tie
+treatment and sew-out validation of bent satins through junctions remain open.

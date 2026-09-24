@@ -44,11 +44,15 @@ def area(path,split_crossings=False):
                 u=((c[0]-a[0])*uy-(c[1]-a[1])*ux)/determinant
                 if 0<t<1 and 0<u<1: levels.add(a[1]+t*uy)
     levels=sorted(levels)
-    total=0
+    # Sweep upward, keeping only edges that span the current band.
+    ordered=sorted(edges,key=lambda edge:min(edge[0][1],edge[1][1]))
+    active=[]; position=0; total=0
     for low,high in zip(levels,levels[1:]):
         y=(low+high)/2
-        hits=sorted(a[0]+(b[0]-a[0])*(y-a[1])/(b[1]-a[1]) for a,b in edges
-                    if min(a[1],b[1])<=y<max(a[1],b[1]))
+        while position<len(ordered) and min(ordered[position][0][1],ordered[position][1][1])<=y:
+            active.append(ordered[position]); position+=1
+        active=[(a,b) for a,b in active if max(a[1],b[1])>y]
+        hits=sorted(a[0]+(b[0]-a[0])*(y-a[1])/(b[1]-a[1]) for a,b in active)
         total+=(high-low)*sum(b-a for a,b in zip(hits[::2],hits[1::2]))
     return total
 

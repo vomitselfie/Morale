@@ -63,8 +63,10 @@ some export/dialog operations can still pause the interface.
   for thin columns, satin for eligible narrow regions, and fill elsewhere, with
   per-region explanations and overrides. Optional travel ordering keeps overlap
   order and reports the distance saved within each thread-color run. Match traced
-  colors to a built-in palette or your CSV thread chart before applying them. Branching and photographic digitizing
-  remain pending. See [image digitizing](docs/IMAGE_DIGITIZING.md).
+  colors to a built-in palette or your CSV thread chart before applying them.
+  **Split suitable branching shapes** cuts Y, X, star and letter-like forks at
+  their crotches into satin columns, leaving broad areas as fill. Join treatment
+  and photographic digitizing remain pending. See [image digitizing](docs/IMAGE_DIGITIZING.md).
 - Embedded PNG/JPEG/BMP/WebP reference images for manual tracing, with numeric
   positioning, sizing, rotation, opacity, visibility, removal and undo.
 

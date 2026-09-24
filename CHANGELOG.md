@@ -3,6 +3,14 @@
 Morale is pre-1.0. Stitch output has not been validated by physical sew-outs;
 test on scrap fabric before sewing a finished piece.
 
+## Unreleased
+
+### Artwork and image digitizing
+- **Split suitable branching shapes** now cuts at branch crotches along short
+  interior chords, so Y, X, star and K forms at any angle become satin columns
+  and stems separate cleanly from broad fills.
+- Faster area measurement across conversion (full test suite about 27% faster).
+
 ## 0.2.0 — 2026-09-24
 
 Image-to-embroidery becomes the headline feature, with broader library, thread

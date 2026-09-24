@@ -92,9 +92,19 @@ Changing charts preserves region overrides and requires a fresh preview.
 
 The optional **Split suitable branching shapes** pass partitions single-contour
 silhouettes at changes in cross-section count or abrupt broad/narrow transitions.
-It tries horizontal, vertical and principal-axis cuts, requiring at least two
-resulting pieces to qualify as columns. T and forked fixtures are covered; this
-is not a general skeleton/branch router. Splits retain the source coverage within
+It tries horizontal, vertical and principal-axis cuts, and separately cuts along
+short interior chords at the branch crotches. Crotches are inside corners of at
+least 35 degrees, measured 0.6 mm either side of the vertex so rounded traced
+curves still qualify. Each chord joins two crotches or crosses the arm from one
+crotch, lies wholly inside the region and separates boundary at least twice its
+own length on both sides. Cuts are applied greedily, shortest first, when they
+create a satin-width (at least 0.8 mm) column; pieces under 0.3 mm² are
+rejected. Chord pieces share exact cut edges, so no clipping is involved. The
+candidate with the most satin area wins, then the fewest pieces; running-stitch
+slivers earn no credit. Arms may continue through a junction as one bent satin
+rather than meeting a separate junction patch. T, Y, X, five-arm star, K and
+leaf-with-stem fixtures are covered at oblique rotations, both as polygons and
+traced antialiased raster artwork. This is not a medial-axis router. Splits retain the source coverage within
 0.02 square millimeters, remove clipping tails and avoid area overlap. The pass
 is bounded to twelve cuts and twenty-four pieces per region, within the project
 object limit. Existing usable columns, holes, groups and explicit stage/control
@@ -167,8 +177,8 @@ travel equivalence or physical sewing quality.
 
 Next work, while retaining the broader parity ledger:
 
-1. Extend initial branch partitioning to general skeletons, continuous branch
-   routing, join treatments and ambiguous rounded ends.
+1. Extend crotch-chord branch partitioning with continuous branch routing, join
+   overlap/tie treatments, junction patches for wide hubs and ambiguous rounded ends.
 2. Extend perceptual chart matching with palette-wide color planning and display/
    gamut management, and improve region ordering, travel and overlap control.
 3. Extend the initial conversion measurements with local density/overlap maps

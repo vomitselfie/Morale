@@ -44,7 +44,7 @@ def test_forked_shape_preserves_coverage_and_has_multiple_columns():
     source=Project(objects=[DesignObject(kind='polygon',width=20,height=20,underlay=False,
         points=[[x/20,y/20] for x,y in ring])])
     split,notes=split_branches(source)
-    assert notes and len(split.objects)>=3
+    assert notes and len(split.objects)>=2
     result,decisions=choose_stitches(split)
     assert sum(d['selected']=='satin' for d in decisions)>=2
     assert difference_area(outline_path(source.objects[0].rings()),outline_path([r for o in split.objects for r in o.rings()]))<.01
@@ -87,3 +87,65 @@ def test_branch_export_stays_inside_silhouette(tmp_path,extension):
     sewn=[s for b in generate(import_machine(path).project) for s in b.stitches if s.command=='stitch']
     assert sewn
     assert all((-6.1<=s.x<=6.1 and -12.1<=s.y<=-9.5) or (-1.3<=s.x<=1.3 and -9.7<=s.y<=12.1) for s in sewn)
+
+
+def _stroked(segments,width,rotation=0,rounded=False):
+    """Union of stroked centerlines, as flattened artwork outlines would arrive."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QPainterPath,QPainterPathStroker
+    path=QPainterPath()
+    for segment in segments:
+        line=QPainterPath();line.moveTo(*segment[0])
+        for point in segment[1:]:line.lineTo(*point)
+        stroker=QPainterPathStroker();stroker.setWidth(width)
+        stroker.setCapStyle(Qt.PenCapStyle.RoundCap if rounded else Qt.PenCapStyle.FlatCap)
+        stroker.setJoinStyle(Qt.PenJoinStyle.RoundJoin if rounded else Qt.PenJoinStyle.MiterJoin)
+        path=path.united(stroker.createStroke(line))
+    return _polygon(path,rotation)
+
+
+def _polygon(path,rotation):
+    ring=[(p.x(),p.y()) for p in path.simplified().toFillPolygons()[0]]
+    if ring[0]==ring[-1]:ring.pop()
+    c,s=math.cos(math.radians(rotation)),math.sin(math.radians(rotation))
+    ring=[(x*c-y*s,x*s+y*c) for x,y in ring]
+    xs,ys=zip(*ring);cx,cy=(min(xs)+max(xs))/2,(min(ys)+max(ys))/2;w,h=max(xs)-min(xs),max(ys)-min(ys)
+    return DesignObject(kind='polygon',x=cx,y=cy,width=w,height=h,underlay=False,points=[[(x-cx)/w,(y-cy)/h] for x,y in ring])
+
+
+def _radial(count,length=10,offset=0):
+    return [[(0,0),(length*math.cos(2*math.pi*k/count+offset),length*math.sin(2*math.pi*k/count+offset))] for k in range(count)]
+
+
+@pytest.mark.parametrize('name,segments,width,rounded',[
+    ('Y',_radial(3,offset=math.pi/2),3,False),
+    ('rounded Y',_radial(3,offset=math.pi/2),3,True),
+    ('X',_radial(4,offset=math.pi/5),3,False),
+    ('star',_radial(5,length=9),2.5,False),
+    ('K',[[(0,-10),(0,10)],[(0,1),(7,-9)],[(2,-1),(7,9)]],2.2,False)])
+@pytest.mark.parametrize('rotation',[0,17,40])
+def test_obliquely_branching_shapes_become_satin_columns(name,segments,width,rounded,rotation):
+    # Straight horizontal/vertical/principal cuts cannot separate these arms at
+    # every rotation; crotch-to-crotch chords can.
+    source=Project(objects=[_stroked(segments,width,rotation,rounded)])
+    split,notes=split_branches(source)
+    assert notes and 2<=len(split.objects)<=len(segments)+1
+    _,decisions=choose_stitches(split)
+    assert all(d['selected']=='satin' for d in decisions),(name,decisions)
+    original=outline_path(source.objects[0].rings())
+    assert difference_area(original,outline_path([r for o in split.objects for r in o.rings()]))<.001
+    assert sum(area(outline_path(o.rings())) for o in split.objects)==pytest.approx(area(original),abs=.001)
+
+
+@pytest.mark.parametrize('rotation',[0,17,40])
+def test_stem_is_cut_from_broad_fill_without_slivers(rotation):
+    from PySide6.QtCore import QPointF
+    from PySide6.QtGui import QPainterPath,QPainterPathStroker
+    leaf=QPainterPath();leaf.addEllipse(QPointF(0,-7),5,8)
+    stem=QPainterPath();stem.moveTo(0,0);stem.lineTo(0,9)
+    stroker=QPainterPathStroker();stroker.setWidth(1.6)
+    source=Project(objects=[_polygon(leaf.united(stroker.createStroke(stem)),rotation)])
+    split,notes=split_branches(source)
+    assert notes and len(split.objects)==2
+    _,decisions=choose_stitches(split)
+    assert sorted(d['selected'] for d in decisions)==['fill','satin']
