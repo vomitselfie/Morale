@@ -10,27 +10,60 @@ from .measurements import factor, dimension
 
 
 STYLE = """
-QMainWindow, QWidget { background: #f7f8f4; color: #293e35; font-family: 'Segoe UI', 'Noto Sans', sans-serif; font-size: 13px; }
+QMainWindow, QWidget { background: #f7f8f4; color: #293e35; font-family: 'Segoe UI', 'Noto Sans', sans-serif; font-size: {base}pt; }
 QToolBar { background: #ffffff; border: 0; border-bottom: 1px solid #dde4dc; padding: 8px; spacing: 7px; }
 QToolButton { padding: 8px 12px; border-radius: 5px; }
 QToolButton:hover, QPushButton:hover { background: #e1ebe3; }
 QToolButton:checked { background: #dceadf; color: #23543d; }
-QPushButton { border: 1px solid #d2ddd3; border-radius: 5px; padding: 7px 10px; background: #ffffff; }
+QPushButton { border: 1px solid #7a8b7e; border-radius: 5px; padding: 7px 10px; background: #ffffff; }
 QPushButton#primary { background: #315e49; color: white; border: 0; padding: 9px 15px; }
-QLineEdit, QDoubleSpinBox, QComboBox { background: white; border: 1px solid #d7dfd5; border-radius: 4px; padding: 5px; min-height: 20px; }
+QLineEdit, QDoubleSpinBox, QSpinBox, QComboBox { background: white; border: 1px solid #7a8b7e; border-radius: 4px; padding: 5px; min-height: 20px; }
+QLineEdit:focus, QDoubleSpinBox:focus, QSpinBox:focus, QComboBox:focus { border: 2px solid #315e49; padding: 4px; }
+QPushButton:focus { border: 2px solid #315e49; padding: 6px 9px; }
+QPushButton#primary:focus { border: 2px solid #1c3a2c; padding: 7px 13px; }
+QToolButton:focus { border: 2px solid #315e49; padding: 6px 10px; }
 QListWidget { background: transparent; border: 0; outline: 0; }
+QListWidget:focus { border: 2px solid #315e49; border-radius: 5px; }
 QListWidget::item { padding: 10px 5px; margin: 2px 0; border-radius: 5px; }
 QListWidget::item:selected { background: #dce9dd; color: #234f3a; }
-QLabel#eyebrow { color: #708271; font-size: 10px; font-weight: 600; letter-spacing: 2px; }
-QLabel#heading { font-size: 24px; font-weight: 600; }
-QLabel#muted { color: #788579; }
-QStatusBar { background: #ecf0e8; color: #57705e; }
-QSlider::groove:horizontal { height: 5px; background: #d5dfd3; border-radius: 2px; }
+QLabel#eyebrow { color: #56665a; font-size: {small}pt; font-weight: 600; letter-spacing: 2px; }
+QLabel#heading { font-size: {heading}pt; font-weight: 600; }
+QLabel#muted { color: #56665a; }
+QStatusBar { background: #ecf0e8; color: #46594c; }
+QSlider::groove:horizontal { height: 5px; background: #a9b8ab; border-radius: 2px; }
 QSlider::handle:horizontal { width: 13px; margin: -4px 0; background: #37664d; border-radius: 6px; }
 QSplitter::handle { background: #dce3d9; width: 1px; }
 QCheckBox { spacing: 7px; }
 QWidget:disabled { color: #88968c; }
 """
+
+
+def style_sheet(base_points):
+    """The window style in points relative to the system font, so text follows the
+    operating system's text-size setting instead of fixed pixels."""
+    base = max(8., min(32., base_points))
+    sizes = {"base": base, "small": max(7.5, base * .8), "heading": base * 1.8}
+    text = STYLE
+    for key, value in sizes.items():
+        text = text.replace("{" + key + "}", f"{value:.1f}")
+    return text
+
+
+def add_mnemonics(menu):
+    """Give every entry of a menu (and its submenus) a unique keyboard accelerator."""
+    used = {a.text()[a.text().index("&") + 1].lower() for a in menu.actions() if "&" in a.text() and a.text().index("&") + 1 < len(a.text())}
+    for action in menu.actions():
+        text = action.text()
+        if action.menu() is not None:
+            add_mnemonics(action.menu())
+        if action.isSeparator() or not text or "&" in text:
+            continue
+        candidates = [i for i, character in enumerate(text) if character.isalnum()]
+        # Prefer an unused letter; long menus reuse one, and Qt cycles between matches.
+        index = next((i for i in candidates if text[i].lower() not in used), candidates[0] if candidates else None)
+        if index is not None:
+            used.add(text[index].lower())
+            action.setText(text[:index] + "&" + text[index:])
 
 
 def label(text, name=None):

@@ -40,7 +40,7 @@ not a reproduction of the vendor's specifications or a claim of equivalence.
 | Machine setup | Profiles with supported formats/versions, hoop fields, needle setup | Generic format/hoop controls; no claimed machine profiles yet |
 | Design management | Browse library, thumbnails, search, printable catalogs/templates | Native folder tree, filename filtering, cancellable recursive path search, isolated selected-file stitch previews and tiled placement PDFs tested. Visible search-result thumbnails tested; printable catalogs now tested; persistent metadata indexing pending |
 | Reliability | Background generation/import, cancellation, autosave/recovery, corrupt input checks | Main-window preview/property-refresh workers with versioned results, cancellation/retry and timeouts; batch, folder, tracing and multi-hoop workers; bounded history and local recovery tested. Pre-commit generation checks, ordinary file decoding and some dialogs/exports remain synchronous and can delay checkpoints |
-| Accessibility | Keyboard-complete editing, screen-reader labels, contrast, large-text checks | Native widgets and some labels; full audit pending |
+| Accessibility | Keyboard-complete editing, screen-reader labels, contrast, large-text checks | Automated audit of the main window and 13 dialogs for accessible names and keyboard focus; WCAG AA text contrast and 3:1 control borders; visible focus; text sized from the system font; unique menu accelerators; arrow-key object nudging. Screen-reader testing with NVDA/VoiceOver/Orca and a keyboard-only drawing tool remain pending |
 | Distribution | Repeatable platform builds, license bundle, install/uninstall, release checks | Native bundle self-test and report retention wired into manual build matrix; Linux execution checked. Windows/macOS execution, installers, complete license bundle and signing remain pending |
 
 ## Current compatibility gate
@@ -1288,3 +1288,16 @@ satin. Plans are stored in the object's normalized frame, validated on load, mov
 with the object, re-plan on text edits and fall back to fill when lettering becomes
 plain outlines. Full Linux offscreen suite: 1,881 passed. Sew-outs of small satin
 text remain pending.
+
+### Accessibility audit
+
+`tests/test_accessibility.py` opens the main window and, through their real
+commands, the point, stitch, routing, appliqué, transform, thread catalog,
+lettering, template, both hoop, batch, library and artwork-conversion dialogs, and
+requires every interactive control to have an accessible name (own, label buddy or
+form label) and keyboard focus. Stylesheet text meets 4.5:1 contrast and input and
+button borders 3:1; focused controls show a 2 px border. Text sizes are points
+derived from the system font, so operating-system text scaling applies. Every menu
+entry has an accelerator. Arrow keys nudge the selection by 0.1 mm, 1 mm with
+Shift, or one grid step, each an Undo step. Drawing new shapes still needs a
+pointer; numeric properties and point editors are the keyboard alternative.

@@ -14,7 +14,7 @@ from .threads import THREAD_FIELDS, thread_key, usage
 from .reference import decode_reference
 from .recovery import RecoveryStore
 from .engine import generate, preflight
-from .window_ui import STYLE, WindowLayoutMixin
+from .window_ui import style_sheet, add_mnemonics, WindowLayoutMixin
 from .window_files import FileWorkflowsMixin
 from .window_artwork import ArtworkMixin
 from .window_editing import EditingMixin
@@ -67,7 +67,7 @@ class MainWindow(WindowLayoutMixin, FileWorkflowsMixin, ArtworkMixin, EditingMix
             self.generation_runner.failed.connect(self.calculation_failed)
         self.setMinimumSize(1000, 680)
         self.resize(1360, 880)
-        self.setStyleSheet(STYLE)
+        self.setStyleSheet(style_sheet(QApplication.font().pointSizeF()))
         self.timer = QTimer(self)
         self.timer.setInterval(30)
         self.timer.timeout.connect(self.tick)
@@ -89,6 +89,9 @@ class MainWindow(WindowLayoutMixin, FileWorkflowsMixin, ArtworkMixin, EditingMix
         if self.recovery:
             self.recovery_timer.start()
         self.make_actions()
+        for menu_action in self.menuBar().actions():
+            if menu_action.menu() is not None:
+                add_mnemonics(menu_action.menu())
         self.make_ui()
         self.refresh()
         QTimer.singleShot(0, self.canvas.fit)

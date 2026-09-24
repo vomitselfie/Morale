@@ -118,7 +118,7 @@ is an overview, not an actual-size placement template.
 
 - Native menus, file dialogs, color picker, and scalable drawing canvas.
 - Ellipse, rectangle, leaf, polygon, and open running-path digitizing tools.
-- Drag to move; numerical position, dimensions, and rotation in millimeters.
+- Drag to move, or nudge with the arrow keys (0.1 mm; Shift for 1 mm; one grid step when snapping); numerical position, dimensions, and rotation in millimeters.
 - Mirror objects left/right or top/bottom and align their actual geometry to
   sewing-field edges or centers through **Edit → Arrange object**.
 - Native copy/cut/paste of selected editable objects, including transfer

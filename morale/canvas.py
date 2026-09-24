@@ -582,6 +582,8 @@ class Canvas(StitchCanvasMixin, QWidget):
     def keyPressEvent(self, event):
         if self.mode == "stitch_nodes" and self.stitch_key(event):
             event.accept()
+        elif self.mode == "select" and self.selected_id and self.nudge_key(event):
+            event.accept()
         elif event.key() in {Qt.Key.Key_Return, Qt.Key.Key_Enter}:
             self.finish_path()
         elif event.key() == Qt.Key.Key_Escape:
@@ -597,6 +599,16 @@ class Canvas(StitchCanvasMixin, QWidget):
             self.update()
         else:
             super().keyPressEvent(event)
+
+    def nudge_key(self, event):
+        """Arrow keys move the selection: 0.1 mm, 1 mm with Shift, or one grid step."""
+        directions = {Qt.Key.Key_Left: (-1, 0), Qt.Key.Key_Right: (1, 0), Qt.Key.Key_Up: (0, -1), Qt.Key.Key_Down: (0, 1)}
+        if event.key() not in directions:
+            return False
+        step = self.grid_step() if self.snap_grid else 1. if event.modifiers() & Qt.KeyboardModifier.ShiftModifier else .1
+        dx, dy = directions[event.key()]
+        self.moved.emit(self.selected_id, dx * step, dy * step)
+        return True
 
     def wheelEvent(self, event):
         before = self.world(event.position())

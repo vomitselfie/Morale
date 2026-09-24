@@ -38,6 +38,14 @@ test on scrap fabric before sewing a finished piece.
   cancellable progress dialog, so large machine files no longer freeze the
   window.
 
+### Accessibility
+- Text follows the system font size instead of fixed pixels; muted text, labels
+  and input borders meet WCAG contrast; focused controls show a clear border.
+- Every menu entry has a keyboard accelerator, and arrow keys nudge the selected
+  objects (Shift for 1 mm, or one grid step when snapping).
+- An automated audit checks the main window and 13 dialogs for screen-reader
+  names and keyboard focus.
+
 ### Fixes
 - **File → Split for multiple hoopings** opened the wrong dialog and failed: two
   different `HoopDialog` classes shared one name in the main window module.
