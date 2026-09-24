@@ -8,7 +8,7 @@ The long-term benchmark is advanced hobbyist digitizing, as represented by
 [Hatch Digitizer](https://hatchembroidery.com/products/hatch-embroidery/digitizer).
 Morale uses its own interface and implementation; no proprietary code or assets.
 
-## 0.1 — Native foundation (implemented)
+## 0.1 — Native foundation (released)
 
 Qt desktop workspace, basic vector shapes and paths, running/tatami stitches,
 thread sequence, numeric transforms, undo/redo, hoop checks, playback, editable

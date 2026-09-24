@@ -1,0 +1,59 @@
+# Changelog
+
+Morale is pre-1.0. Stitch output has not been validated by physical sew-outs;
+test on scrap fabric before sewing a finished piece.
+
+## 0.2.0 — 2026-09-24
+
+Image-to-embroidery becomes the headline feature, with broader library, thread
+and export tooling around it.
+
+### Artwork and image digitizing
+- **File → Digitize artwork** traces PNG/JPEG/BMP/WebP images with smooth
+  shared-boundary curves, or takes SVG directly, and exports the fitted SVG.
+- Automatic running/satin/fill selection by physical width, with per-region
+  overrides and explanations; open-ribbon and closed-band satin fitting,
+  optional branch splitting and band seam control.
+- Perceptual (Oklab) palette reduction, border-connected white background
+  removal that keeps enclosed white details, and thread-chart matching.
+- Covered-fill removal with seam allowance, small-hole filling, physical detail
+  filtering, fill-angle search and disconnected fill-run routing.
+- Conversion workspace with aligned source/vector/stitch panels, artwork overlay,
+  density and overlap reviews, light-thread contrast, stitch and underlay
+  settings, portable presets and a shareable review PDF.
+- SVG dashed-stroke expansion, `pathLength` calibration and `paint-order`.
+
+### Editing
+- Object edge and center snapping while dragging.
+- Multi-stitch selection, box selection, movement and deletion on the canvas.
+- **Split long stitches** in the stitch editor.
+- Lettering placed along a drawn path.
+
+### Threads, library and export
+- INF/EDR palette import and export; perceptual matching by default with a
+  match preview tab.
+- Recursive library search, visible-result thumbnails and printable PDF
+  catalogs with a file index.
+- Long sewn-span diagnostics and overlay, export preparation counts (including
+  multi-hoop bundles) and sewn-start handling.
+- Automatic satin appliqué covers with tatami fallback.
+
+### Quality and packaging
+- Repeatable internal image benchmark (`python -m morale.image_benchmark`) with
+  a strict sampled sewn-path export gate.
+- Packaged-bundle self-test (`scripts/check_bundle.py`).
+- 1,800 automated tests passing on Linux (offscreen Qt).
+
+### Known issues
+- VP3 export fails the sampled sewn-path gate in 7 of 11 benchmark cases: the
+  installed pyembroidery writer loses internal jump positions. See
+  [VP3_INVESTIGATION.md](docs/VP3_INVESTIGATION.md). Prefer PES, DST or EXP.
+- Windows and macOS builds are untested, and no machine-specific profiles
+  have been validated yet.
+- New dependency: `vtracer`.
+
+## 0.1.0
+
+Native Qt foundation: vector shapes and paths, running/tatami/satin stitches,
+thread sequence, numeric transforms, undo/redo, hoop checks, playback, editable
+`.morale` projects, machine-file import and export, and automated tests.
