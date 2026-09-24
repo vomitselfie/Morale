@@ -1,4 +1,4 @@
-"""File-based thread catalogs and explicit RGB-distance matching."""
+"""File-based thread catalogs and explicit RGB/Oklab matching."""
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -28,6 +28,9 @@ def builtin_catalog(name):
 
 def read_catalog(path):
     path=Path(path)
+    if path.suffix.lower() in {'.inf','.edr'}:
+        from .thread_palette_files import read_palette
+        return read_palette(path)
     if path.stat().st_size>2_000_000:
         raise ValueError('Thread catalogs are limited to 2 MB.')
     try:
@@ -78,7 +81,11 @@ def distance_squared(a,b):
     return sum((x-y)**2 for x,y in zip(rgb(a),rgb(b)))
 
 
-def nearest_thread(color,entries):
+def nearest_thread(color,entries,metric="rgb"):
+    if not isinstance(metric,str) or metric not in {"rgb","oklab"}:raise ValueError("Choose RGB or Oklab thread matching.")
+    if metric=="oklab":
+        from .perceptual_color import distance_squared as score
+    else:score=distance_squared
     if not entries:
         raise ValueError('Choose a catalog containing threads.')
-    return min(entries,key=lambda entry:distance_squared(color,entry.color))
+    return min(entries,key=lambda entry:score(color,entry.color))

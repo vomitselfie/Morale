@@ -117,8 +117,8 @@ def test_cleaned_generated_design_exports_in_all_formats(tmp_path,extension):
     stitches=[s for b in generate(import_machine(path).project) for s in b.stitches if s.command=='stitch']
     assert stitches
     source=generate(Project(objects=[obj]))[0].stitches
-    # PEC/PES encoding adds sewn landing points for travel; other tested
-    # writers retain the sewn bounds rather than the source outline bounds.
-    reference=[s for s in source if s.command=='stitch' or extension in {'pec','pes'} and s.command=='jump']
+    # All writers must retain the sewn needle bounds. PEC/PES no longer get
+    # an exception for synthetic needle points at travel-only extrema.
+    reference=[s for s in source if s.command=='stitch']
     assert (min(s.y for s in stitches),max(s.y for s in stitches))==pytest.approx(
         (min(s.y for s in reference),max(s.y for s in reference)),abs=.15)

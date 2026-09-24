@@ -8,7 +8,7 @@ import sys
 
 from PySide6.QtCore import QObject, QProcess, QTemporaryDir, QTimer, Signal
 
-from .formats import EXPORT_FORMATS, export_machine, export_notes, import_machine
+from .formats import EXPORT_FORMATS, export_machine, export_notes, export_summary, import_machine
 
 
 def worker_main(arguments):
@@ -18,8 +18,8 @@ def worker_main(arguments):
     source, staged, version = arguments
     try:
         imported = import_machine(source)
-        export_machine(imported.project, staged, pes_version=int(version))
-        result = {"notes": imported.notes + export_notes(Path(staged).suffix.lower(), int(version))}
+        preparation=export_machine(imported.project, staged, pes_version=int(version))
+        result = {"notes": imported.notes + [export_summary(preparation)] + export_notes(Path(staged).suffix.lower(), int(version))}
         code = 0
     except Exception as exc:
         result = {"error": str(exc)}

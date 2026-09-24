@@ -46,11 +46,54 @@ def manual_object(obj, rows):
     candidate.handles = []
     candidate.contours = []
     candidate.lettering = {}
-    candidate.underlay = candidate.tie_in = candidate.tie_off = candidate.trim_after = candidate.connect_fill = False
+    candidate.underlay = candidate.tie_in = candidate.tie_off = candidate.trim_after = candidate.connect_fill = candidate.route_fill = False
+    candidate.jump_trim=0
     candidate.stop_after = False
     candidate.stitch_data = [[(x - candidate.x) / candidate.width, (y - candidate.y) / candidate.height, command] for x, y, command in clean]
     Project.loads(Project(objects=[candidate]).dumps())
     return candidate
+
+
+def delete_needle_positions(rows,indices):
+    """Remove chosen motion commands, retaining controls and a valid entry jump."""
+    if not isinstance(indices,(list,tuple,set)) or any(type(i) is not int or not 0<=i<len(rows) or rows[i][2] not in {'stitch','jump'} for i in indices):
+        raise ValueError('Select valid needle positions to delete.')
+    selected=set(indices)
+    remaining=[list(row) for i,row in enumerate(rows) if i not in selected]
+    first=next((row for row in remaining if row[2] in {'stitch','jump'}),None)
+    if first is None:raise ValueError('Keep at least one needle position. Use Delete object to remove the whole object.')
+    added=bool(remaining and remaining[0][2]!='jump')
+    if added:remaining.insert(0,[first[0],first[1],'jump'])
+    normalize_controls(remaining)
+    return remaining,added
+
+
+def split_sewn_splices(rows,maximum,indices=None):
+    """Plan insertions without changing the existing sewn path or travel."""
+    if isinstance(maximum,bool) or not isinstance(maximum,(int,float)) or not .5<=maximum<=12 or not math.isfinite(maximum):
+        raise ValueError('Choose a maximum sewn span from 0.5 to 12 mm.')
+    if not isinstance(rows,(list,tuple)) or not rows or len(rows)>250_000 or not isinstance(rows[0],(list,tuple)) or len(rows[0])!=3 or rows[0][2]!='jump':raise ValueError('Start with a jump before splitting sewn spans.')
+    if indices is not None and (not isinstance(indices,(list,tuple,set)) or any(type(i) is not int or not 0<=i<len(rows) for i in indices)):
+        raise ValueError('Select valid commands to split.')
+    selected=None if indices is None else set(indices)
+    previous=(0.,0.);plans=[];total=len(rows)
+    for index,row in enumerate(rows):
+        if not isinstance(row,(list,tuple)) or len(row)!=3 or row[2] not in COMMANDS or any(isinstance(v,bool) or not isinstance(v,(int,float)) or not -1000<=v<=1000 or not math.isfinite(v) for v in row[:2]):
+            raise ValueError('Correct invalid command coordinates before splitting.')
+        point=tuple(row[:2])
+        if row[2]=='stitch' and (selected is None or index in selected):
+            count=max(1,math.ceil(math.dist(previous,point)/maximum))
+            if count>1:
+                total+=count-1
+                if total>250_000:raise ValueError('Splitting exceeds the 250,000-command limit. Increase the maximum span or select fewer commands.')
+                plans.append((index,count,previous,point))
+        if row[2] in {'stitch','jump'}:previous=point
+    splices=[]
+    for index,count,start,end in reversed(plans):
+        replacement=[[start[0]+(end[0]-start[0])*i/count,start[1]+(end[1]-start[1])*i/count,'stitch'] for i in range(1,count)]
+        replacement.append(list(rows[index]))
+        splices.append((index,[list(rows[index])],replacement))
+    return splices
 
 
 class StitchTableModel(QAbstractTableModel):
@@ -200,6 +243,11 @@ class StitchTableModel(QAbstractTableModel):
         splices = [(start,self.rows[start:end],[]) for start,end in reversed(ranges)]
         self._record(splices, "delete commands", indices[0])
 
+    def split_long_stitches(self,maximum,indices=None):
+        splices=split_sewn_splices(self.rows,maximum,indices)
+        self._record(splices,'split long stitches',splices[-1][0] if splices else 0)
+        return sum(len(after)-len(before) for _,before,after in splices)
+
 
 class CommandDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):
@@ -331,6 +379,14 @@ class StitchDialog(QDialog):
         remove.clicked.connect(lambda: self.model.delete_rows([i.row() for i in self.table.selectionModel().selectedRows()]))
         row.addWidget(remove)
         layout.addLayout(row)
+        split_row=QHBoxLayout()
+        self.split_maximum=QDoubleSpinBox();self.split_maximum.setRange(.5,12);self.split_maximum.setValue(6);self.split_maximum.setSingleStep(.5);self.split_maximum.setSuffix(' mm')
+        self.split_maximum.setAccessibleName('Maximum sewn span')
+        self.split_scope=QComboBox();self.split_scope.addItems(['Whole object','Selected commands']);self.split_scope.setAccessibleName('Stitch splitting scope')
+        split_button=QPushButton('Split long stitches');split_button.clicked.connect(self.split_long_stitches)
+        split_button.setToolTip('Add needle positions along existing sewn spans. Jumps and trim/stop commands are retained. Review the added penetrations before applying.')
+        split_row.addWidget(QLabel('Maximum span'));split_row.addWidget(self.split_maximum);split_row.addWidget(self.split_scope);split_row.addWidget(split_button)
+        layout.addLayout(split_row)
         controls = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         controls.accepted.connect(self.accept)
         controls.rejected.connect(self.reject)
@@ -373,6 +429,12 @@ class StitchDialog(QDialog):
     def insert(self):
         index = self.table.currentIndex().row()
         self.model.insert_command(index if index >= 0 else len(self.model.rows), self.command.currentText())
+
+    def split_long_stitches(self):
+        self.commit_editor()
+        indices=None if self.split_scope.currentIndex()==0 else [i.row() for i in self.table.selectionModel().selectedRows()]
+        try:self.model.split_long_stitches(self.split_maximum.value(),indices)
+        except ValueError as exc:QMessageBox.warning(self,'Stitches not split',str(exc))
 
     def accept(self):
         # Moving focus commits the active table delegate before validation.

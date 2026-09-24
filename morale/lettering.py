@@ -4,21 +4,17 @@ import math
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QFontInfo, QFontMetricsF, QPainterPath, QTransform, QFontDatabase
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QFormLayout, QLineEdit, QFontComboBox, QDoubleSpinBox, QDialogButtonBox, QLabel, QMessageBox, QComboBox
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QFormLayout, QLineEdit, QFontComboBox, QDoubleSpinBox, QDialogButtonBox, QLabel, QMessageBox, QComboBox, QCheckBox
 
 from .model import DesignObject, Project
 from .engine import generate
 
 
-def make_lettering(text, family, height=15., spacing=100., previous=None, *, layout="straight", curve=60.):
+def lettering_font(text,family,height,spacing):
     if not isinstance(text, str) or not text.strip() or len(text) > 80 or any(c in text for c in "\n\r\t"):
         raise ValueError("Enter a single line of 1–80 visible characters.")
     if not math.isfinite(height) or not 1 <= height <= 100 or not math.isfinite(spacing) or not 50 <= spacing <= 200:
         raise ValueError("Use height 1–100 mm and character spacing 50–200%.")
-    if layout not in {"straight", "curved", "monogram"} or not math.isfinite(curve) or not -180 <= curve <= 180:
-        raise ValueError("Choose a supported layout and a curve between −180° and 180°.")
-    if layout == "monogram" and (len(text) != 3 or not text.isalpha()):
-        raise ValueError("A monogram requires three letters in left-to-right order; the middle letter is enlarged.")
     font = QFont(family)
     font.setPixelSize(100)
     font.setLetterSpacing(QFont.SpacingType.PercentageSpacing, spacing)
@@ -27,6 +23,18 @@ def make_lettering(text, family, height=15., spacing=100., previous=None, *, lay
     missing = [c for c in text if not c.isspace() and not metrics.inFontUcs4(ord(c))]
     if missing:
         raise ValueError("This font lacks some characters. Choose another font: " + " ".join(dict.fromkeys(missing)))
+    return font,actual_family
+
+
+def make_lettering(text, family, height=15., spacing=100., previous=None, *, layout="straight", curve=60., baseline=None):
+    if layout=="path":
+        from .path_lettering import make_path_lettering
+        return make_path_lettering(text,family,height,spacing,previous,baseline=baseline)
+    font,actual_family=lettering_font(text,family,height,spacing)
+    if layout not in {"straight", "curved", "monogram"} or not math.isfinite(curve) or not -180 <= curve <= 180:
+        raise ValueError("Choose a supported layout and a curve between −180° and 180°.")
+    if layout == "monogram" and (len(text) != 3 or not text.isalpha()):
+        raise ValueError("A monogram requires three letters in left-to-right order; the middle letter is enlarged.")
     path = QPainterPath()
     path.setFillRule(Qt.FillRule.WindingFill)
     if layout == "monogram":
@@ -96,10 +104,11 @@ def make_lettering(text, family, height=15., spacing=100., previous=None, *, lay
 
 
 class LetteringDialog(QDialog):
-    def __init__(self, obj=None, parent=None):
+    def __init__(self, obj=None, parent=None, *, baseline=None):
         super().__init__(parent)
         self.setWindowTitle("Lettering")
         self.previous = obj
+        self.baseline = deepcopy(baseline)
         self.candidate = None
         settings = obj.lettering if obj else {}
         layout = QVBoxLayout(self)
@@ -130,7 +139,9 @@ class LetteringDialog(QDialog):
         self.layout_choice = QComboBox()
         for title, value in [("Straight", "straight"), ("Curved", "curved"), ("Three-letter monogram", "monogram")]:
             self.layout_choice.addItem(title, value)
-        self.layout_choice.setCurrentIndex(self.layout_choice.findData(settings.get("layout", "straight")))
+        if baseline is not None or settings.get("layout") == "path":
+            self.layout_choice.addItem("Along drawn path", "path")
+        self.layout_choice.setCurrentIndex(self.layout_choice.findData(settings.get("layout", "path" if baseline is not None else "straight")))
         self.curve = QDoubleSpinBox()
         self.curve.setRange(-180, 180)
         self.curve.setValue(settings.get("curve", 60))
@@ -144,6 +155,13 @@ class LetteringDialog(QDialog):
         hint = QLabel("Monograms use the entered left-to-right order and enlarge the center letter. Curved layout bends the outlines along an arc.")
         hint.setWordWrap(True)
         layout.addWidget(hint)
+        self.keep_baseline = QCheckBox("Keep baseline path visible and stitchable")
+        if baseline is not None:
+            layout.addWidget(self.keep_baseline)
+        if baseline is not None or settings.get("layout") == "path":
+            path_note = QLabel("Lettering stores its own baseline copy. Inspect tight bends for overlapping letters.")
+            path_note.setWordWrap(True)
+            layout.addWidget(path_note)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
@@ -152,7 +170,7 @@ class LetteringDialog(QDialog):
 
     def accept(self):
         try:
-            self.candidate = make_lettering(self.text.text(), self.font.currentFont().family(), self.height.value(), self.spacing.value(), self.previous, layout=self.layout_choice.currentData(), curve=self.curve.value())
+            self.candidate = make_lettering(self.text.text(), self.font.currentFont().family(), self.height.value(), self.spacing.value(), self.previous, layout=self.layout_choice.currentData(), curve=self.curve.value(), baseline=self.baseline)
         except ValueError as exc:
             QMessageBox.warning(self, "Lettering", str(exc))
             return

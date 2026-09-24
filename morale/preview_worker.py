@@ -11,7 +11,7 @@ from .formats import import_machine
 from .engine import generate
 
 
-def create_preview(source,output):
+def create_preview(source,output,marked_starts=()):
     source,output=Path(source),Path(output)
     before=source.stat()
     notes=[]
@@ -51,9 +51,13 @@ def create_preview(source,output):
                     path.lineTo(*position)
                 if stitch.command in {'jump','stitch'}:
                     previous=position
-            color=QColor(block.color)
-            painter.setPen(QPen(color.darker(160) if color.lightness()>180 else color,1/scale))
-            painter.drawPath(path)
+            from .stitch_rendering import draw_stitch_path
+            draw_stitch_path(painter,path,block.color,1/scale)
+        painter.setPen(QPen(QColor('#1478d4'),1.5/scale));painter.setBrush(QColor('white'))
+        for block in blocks:
+            if block.object_id not in marked_starts: continue
+            first=next((s for s in block.stitches if s.command in {'stitch','jump'}),None)
+            if first is not None: painter.drawEllipse(QPointF(first.x,first.y),3/scale,3/scale)
     finally:
         painter.end()
     after=source.stat()

@@ -36,12 +36,18 @@ some export/dialog operations can still pause the interface.
 ## Available now
 
 - Native menus, file dialogs, color picker, and scalable drawing canvas.
-- **File → Digitize raster artwork** traces PNG/JPEG/BMP/WebP color regions into
-  editable fill objects. Set physical width, color count and sampling resolution,
-  preview in a cancellable worker, then add the result with Undo. Holes and
-  transparent backgrounds are preserved; small regions can be omitted. This is
-  a starting point for flat artwork: sampled outlines can have stair steps and
-  require correction. Automatic stitch-type selection remains pending.
+- **File → Digitize artwork** accepts SVG vectors directly and traces PNG/JPEG/BMP/WebP color regions into
+  editable fill objects using smooth shared-boundary curves. Set physical width,
+  color count, detail filtering and curve simplification; compare source, vector
+  and stitch previews in a cancellable worker, then add the result with Undo.
+  Save the fitted curves as SVG. Holes, transparency and source padding are
+  preserved. Smooth tracing samples up to 1024 pixels; the original pixel tracer
+  remains available for comparison. Automatic selection produces running stitches
+  for thin columns, satin for eligible narrow regions, and fill elsewhere, with
+  per-region explanations and overrides. Optional travel ordering keeps overlap
+  order and reports the distance saved within each thread-color run. Match traced
+  colors to a built-in palette or your CSV thread chart before applying them. Branching and photographic digitizing
+  remain pending. See [image digitizing](docs/IMAGE_DIGITIZING.md).
 - **File → Browse design folder** provides a native folder tree, filename filter,
   and a stitch thumbnail with details for the selected project or machine file.
   Preview decoding runs in a cancellable subprocess with a 30-second timeout;
@@ -144,8 +150,8 @@ some export/dialog operations can still pause the interface.
   multi-row deletion, and a nearby-stitch preview with dashed travel lines.
 - Editable system-font lettering with text, font, height, and character spacing.
   Compound contours preserve letter holes and separate components in fills.
-- Three-stage appliqué from a closed outline: placement, tack-down, and a tatami
-  cover band, with operator pauses and saved fabric-handling instructions.
+- Three-stage appliqué from a closed outline: placement, tack-down, and automatic satin
+  cover borders with tatami fallback, with operator pauses and saved fabric-handling instructions.
 - Embedded PNG/JPEG/BMP/WebP reference images for manual tracing, with numeric
   positioning, sizing, rotation, opacity, visibility, removal and undo.
 - **File → Import SVG artwork** converts solid fills into editable compound
@@ -212,11 +218,13 @@ Playback counts include travel commands; the design summary counts sewn stitches
 Reset playback before editing on the canvas.
 
 Select a closed shape and choose **Edit → Create appliqué stages**. The command
-replaces it with three editable objects in sewing order: a placement run, a stop
-to place fabric, a tack-down run, a stop to trim excess fabric, and a filled cover
-band. Border width is 0.5–6 mm. Instructions appear with the selected stage and
-in the CSV chart. Undo restores the original object. The cover is tatami fill;
-automatic satin-border routing remains open. Verify operator stops in the target
+replaces it with three editable stages in sewing order: a placement run and stop
+to place fabric, a tack-down run and stop to trim excess fabric, then cover borders.
+Automatic mode uses validated satin rails where possible, with named tatami
+fallbacks and a reason in the stage instructions. Separate outer/cutout borders
+become separate cover objects. Tatami mode retains a single compound cover band.
+Border width is 0.5–6 mm. Instructions appear with the selected stage and in the
+CSV chart. Undo restores the original object. Verify operator stops in the target
 machine and test fabric/stabilizer settings on scrap material.
 
 **Operator stop after object** is also available for other generated objects.
@@ -284,8 +292,13 @@ the dialog identifies unavailable saved fonts. Unsupported characters are reject
 
 This is system-font outline digitizing, not a library of purpose-digitized satin
 fonts. Small lettering needs physical tests. Curved layout bends the outlines
-rather than placing unwarped glyphs on an arbitrary drawn path. Font-specific
-satin routing and interactive contour/Bezier editing remain open.
+along an arc. **Edit → Add lettering along path** places shaped glyph groups
+without bending them on a selected path or polygon, including drawn Bezier paths.
+The baseline is copied into the lettering and stays fixed when editing text;
+the original guide is hidden by default, with an option to keep it stitchable.
+Adding text and hiding the guide undo together. Text must fit the baseline.
+Inspect tight bends for overlaps or gaps between connected-script glyphs.
+Font-specific satin routing remains open.
 Text is limited to 80 characters, 1–100 mm letter height, 256 contours and 20,000
 outline points. Compound fill uses even-odd nesting: holes stay empty and nested
 islands are filled. Connections are checked against all contours.
@@ -328,7 +341,7 @@ retains up to 100 actions and 500,000 changed-row entries, always keeping the mo
 recent action. Opening a coordinate editor without changing its displayed value
 preserves the original precision.
 
-Choose **Stitch points** on the toolbar to move individual needle positions on
+Choose **Stitch points** on the toolbar to move one or more needle positions on
 one selected object directly in the main canvas. Click or drag a point; repeated
 clicks cycle coincident positions. **[** and **]** select adjacent motion commands,
 skipping trim/stop controls. Arrow keys move 0.1 mm, Shift+arrows move 1 mm, or one
@@ -338,13 +351,29 @@ with its actual commands retained and following trims/stops repositioned.
 Undo restores the source geometry. At dense overview zoom, displayed point dots
 are sampled to 20,000; hit testing and keyboard navigation include every command.
 
+In **Stitch points** mode, Ctrl-click toggles needle positions and Shift-click
+selects a command range (excluding trim/stop controls). Shift+[ / ] extends a
+selection with the keyboard. Drag a selected point or use arrows to move the
+whole set; snapping uses the active point and preserves relative offsets. Drag
+from empty canvas space to box-select points; Ctrl/Shift adds to the selection,
+and Alt-drag removes points (including when starting over a point). Each
+move is one Undo step. Moving generated stitches converts that object to manual
+stitches; Undo restores its editable geometry. With the stitch canvas focused,
+Ctrl+A selects all needle positions and Delete removes selected positions.
+Retained trim/stop controls stay in order. At least one motion point must remain;
+use Delete object to remove the whole object. Removing the initial jump adds an
+entry jump at the first remaining position. Deleting points reconnects the
+remaining path, so inspect the preview.
+
 ## Multiple hoopings
 
 **File → Split for multiple hoopings** plans an oversized design in a cancellable
 worker. Choose hoop dimensions, margins and optional machine output. Review the
 placement map, then save a new ZIP bundle containing the original project,
 individual manual-stitch projects, optional machine files, a PDF/PNG overview,
-paired alignment coordinates and instructions. Existing bundles are never
+paired alignment coordinates, per-placement stitch counts and instructions.
+`placements.csv` and the PDF distinguish native stitches from positions added
+for machine-format preparation. Existing bundles are never
 overwritten. Changing settings invalidates the reviewed plan.
 
 Hoop fields overlap by twice the margin; sewn content belongs to nonoverlapping
@@ -422,12 +451,23 @@ Advanced automatic digitizing and routing remain open. Exports contain machine s
 retain the `.morale` file for editable geometry. See [the v1 parity ledger](docs/V1_PARITY.md)
 and [the roadmap](docs/ROADMAP.md). V1 parity remains in progress.
 
+After generating artwork, **Save conversion review PDF…** creates a shareable
+report of the artwork, stitches, both density maps and conversion measurements.
+It uses the completed preview and is invalidated when settings change. The report
+is an overview, not an actual-size placement template.
+
+Fill objects also offer **Route disconnected fill runs** to reduce internal jump
+travel while retaining entry/exit and the original sewn segments. Artwork
+conversion exposes the same optional setting. It compares up to 2,000 runs;
+review changed sewing order and exported travel before a test sew-out.
+
 ## Test and package
 
 ```sh
 python -m pytest
 python -m morale.compatibility --output docs/compatibility-report.json
 python -m PyInstaller --noconfirm --clean --windowed --onedir --name Morale --collect-data morale --add-data "LICENSE:." --add-data "THIRD_PARTY_NOTICES.md:." run_morale.py
+python scripts/check_bundle.py --output artifacts/bundle-self-test
 ```
 
 The test suite runs Qt with its offscreen platform plugin. Tests cover the engine,
@@ -441,6 +481,25 @@ distribute the entire `Morale` directory on Linux/Windows, or the `.app` bundle 
 macOS. The repository includes a manually triggered GitHub Actions build matrix.
 These are development bundles, not signed installers. Windows/macOS execution,
 signing, installers, and physical machine compatibility still need validation.
+
+The bundle check launches the built executable with `--self-test` and requires a
+new output directory. It exercises an offscreen native window, project save/reopen,
+generation and raster/SVG tracing subprocesses, artwork Undo, and nine-format
+export/reopen. It leaves a JSON report, generated fixtures, previews and worker
+logs. The manually triggered build matrix runs this check and retains the report
+with each platform bundle, including failed runs. A successful smoke test confirms
+those packaged workflows; it does not establish full parity or physical sewing
+fidelity. To run the same workflow from source, use
+`python -m morale --self-test artifacts/source-self-test`.
+
+The design library also offers **Search subfolders** for case-insensitive matches
+in filenames and relative paths. Results are found without decoding designs;
+the selected result gets a detailed preview. Enable **Thumbnails** to load
+visible result tiles, one at a time in a separate decoder. Up to 200 thumbnails
+are cached in memory; scrolling loads more. Switch thumbnails off to cancel. Search runs separately and can be
+cancelled. Hidden entries and symbolic links are skipped. Limits of 200,000
+entries, 5,000 matches and 30 seconds keep scans bounded; the result summary
+reports truncation and unreadable entries. **Folder view** returns to browsing.
 
 ## Architecture and contributing
 
@@ -460,3 +519,105 @@ Pre-commit generation checks and some dialog/export workflows remain synchronous
 
 Morale is MIT-licensed. Dependencies retain their own licenses; see
 [third-party notices](THIRD_PARTY_NOTICES.md).
+
+Use **View → Snap to object edges and centers** to align objects while dragging.
+Dashed blue guides mark nearby edges or centers; a selection moves together.
+Object alignment takes priority over grid snapping on an aligned axis.
+
+In **Edit individual stitches**, **Split long stitches** adds intermediate needle
+positions along sewn spans. Choose a maximum length and either the whole object
+or selected commands. Travel, trim and stop commands are retained. Review the
+extra penetrations before applying; local Undo and the main window's Undo are
+available.
+
+After export, the confirmation reports the source stitch count and any needle
+positions added to preserve long sewn spans within the format's limits. Batch
+reports include the same information. These are preparation counts; file writers
+may add further stitches or control commands.
+
+
+SVG stroke expansion also supports dashed borders with numeric or absolute-length
+patterns, signed offsets, odd pattern repetition, and round/square dotted caps.
+Enable **Expand SVG strokes into satin or fill regions** in artwork conversion.
+Each dash becomes part of editable filled geometry, with travel across gaps.
+Positive, finite `pathLength` values calibrate dash spacing and offsets before
+transforms, preserving cap size. Percentage/font-relative dash lengths and
+zero-valued `pathLength` still require conversion to plain paths in the source editor. Expansion is bounded to 2,000
+candidate dash pieces and the existing project contour limits.
+
+
+SVG `paint-order` is preserved in both direct import and assisted conversion.
+For example, `paint-order="stroke"` sews the border before the fill, matching a
+border painted underneath its interior. Group/inline styles and omitted-order
+shorthand are supported. Preview layers and optional covered-fill removal use
+that same ordering. SVG marker artwork itself remains unsupported.
+
+
+Artwork conversion offers **Fill holes smaller than** (mm²), disabled by default.
+It closes tiny voids while preserving larger nested holes, saves the choice in
+conversion presets, and reports the added material for review. Original artwork
+remains available for comparison, and insertion can be undone.
+
+
+In the design library, **Create PDF catalog…** lets you choose up to 100 designs
+and prepare a printable thumbnail sheet. Each preview runs separately with a
+30-second timeout; Cancel stops preparation. Save PDF becomes available when
+preparation finishes. The catalog lists dimensions, stitch/RGB-color counts and
+unreadable files, six entries per A4 page. These are preview snapshots, not
+actual-size placement templates. Saving replaces the destination only after the
+PDF is complete.
+
+
+Catalog cards use numbered references and shortened labels to stay readable.
+A paginated file index retains the full source paths and failure details, so
+similarly named designs and long errors can still be identified in print.
+
+
+Catalog saving rejects destinations that name a source design or an existing
+symbolic/hard-link alias of one. The check runs before rendering and again before
+publishing the completed PDF; rejected saves leave the source intact.
+
+
+After searching the library, **Catalog results…** prepares the current found set
+in its displayed order without another file picker. Select up to 100 results from a larger search, or clear the selection to catalog
+the whole found set. Oversized selections are never silently truncated. Folder view does not
+reuse a hidden, older search result list.
+
+
+Library search results support native extended selection. The catalog button
+shows “Catalog selection (N)” when results are selected and otherwise catalogs
+all found results. Selected designs retain their displayed order in the PDF.
+
+
+Thread tools and artwork conversion can import **INF and EDR palettes** alongside
+CSV catalogs. INF retains RGB values, descriptions and chart names; EDR contains
+RGB colors only. These are explicitly selected color sources for matching, not
+stitch files or automatically assigned machine companions. Palette order and
+repeated colors are retained. Truncated or inconsistent records are rejected.
+
+
+The thread-selection table displays chart names alongside descriptions and RGB
+distance. Chart names can be searched, including those imported from INF palettes,
+and remain attached to the assigned thread.
+
+
+Manual thread matching now defaults to **Perceptual (Oklab)**, with RGB comparison
+available in the thread dialog. Ranking, displayed distance and per-object color
+matching use the selected metric. The choice is retained while the main window
+is open; assignment remains undoable and preserves catalog metadata. These are
+screen-color estimates, not measurements of physical thread.
+
+
+The thread dialog’s **Match preview** tab shows proposed matches for every distinct
+selected object color, including affected-object counts. Changes to the palette,
+search filter or metric rebuild the preview. Computation yields between source
+colors and stops on close. “Match colors to shown threads” applies the same filtered
+candidate set and metric; assigning a single highlighted thread remains on the
+Catalog threads tab.
+
+
+**Export shown palette…** in the Catalog threads tab saves the filtered catalog
+in displayed order as INF or EDR. INF exports RGB, descriptions and chart names;
+EDR exports RGB only. Other thread metadata is omitted. Palette files contain no
+stitches, and their displayed order is not automatically a design’s sewing order.
+Exports are written atomically, with byte-correct UTF-8 lengths for INF names.

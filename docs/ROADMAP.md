@@ -14,6 +14,14 @@ Qt desktop workspace, basic vector shapes and paths, running/tatami stitches,
 thread sequence, numeric transforms, undo/redo, hoop checks, playback, editable
 projects, four machine export formats, and automated tests.
 
+## Current priority — Image to embroidery
+
+Feature parity remains the acceptance target. Image digitizing takes priority
+within that work: smooth vector regions and SVG export, followed by stitch-type
+selection, routing and measurable conversion quality. See
+[IMAGE_DIGITIZING.md](IMAGE_DIGITIZING.md). External-file collection follows the
+feature work; synthetic fixtures do not establish physical sewing quality.
+
 ## Next — Reliable sew-outs
 
 1. Identify the first real machine, hoops, fabric, stabilizer, and thread setup.

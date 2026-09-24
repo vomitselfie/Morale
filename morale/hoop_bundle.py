@@ -19,6 +19,7 @@ NOTES=[
     'Splitting adds needle penetrations at seams and regenerates jumps/trims. It does not add seam tie stitches. Inspect and reinforce seam starts/ends as needed; test the assembly on scrap fabric.',
     'Source thread order is retained within each tile. All explicit operator stops are retained, including stops from stages outside that tile. Some formats encode pauses as thread changes. Needle assignments and machine-specific hoop compatibility must be checked on the machine.',
     'Disconnected occupied tiles can lack shared alignment marks. Use their center coordinates and a full-size source placement template to position them.',
+    'Native stitch counts include alignment marks. Prepared counts include positions added for the machine format; its writer may add further stitches or controls. Counts are listed in placements.csv.',
 ]
 
 
@@ -70,8 +71,11 @@ def map_pdf(image,manifest,path):
             if not writer.newPage(): raise OSError('Could not add a map page.')
             painter.drawText(QPointF(12,16),'Hoop center coordinates (mm in source design)')
             for row,tile in enumerate(manifest['tiles'][start:start+30]):
-                painter.drawText(QPointF(12,27+row*7),f"{tile['id']}    X {tile['center'][0]:.3f}    Y {tile['center'][1]:.3f}    {tile['stitches']:,} stitches")
-            painter.drawText(QRectF(12,250,186,35),Qt.TextFlag.TextWordWrap,'Paired mark coordinates are in alignment.csv. '+NOTES[4]+' '+NOTES[5])
+                preparation=tile.get('export_preparation')
+                counts=f"{tile['stitches']:,} native"
+                if preparation:counts+=f" / {preparation['prepared_stitches']:,} prepared (+{preparation['subdivision_added_stitches']:,})"
+                painter.drawText(QPointF(12,27+row*7),f"{tile['id']}    X {tile['center'][0]:.3f}    Y {tile['center'][1]:.3f}    {counts}")
+            painter.drawText(QRectF(12,250,186,35),Qt.TextFlag.TextWordWrap,'Paired mark coordinates are in alignment.csv. '+NOTES[4]+' '+NOTES[5]+' '+NOTES[6])
     finally: painter.end()
 
 
@@ -86,8 +90,8 @@ def build_bundle(project,root,options):
     for tile in plan.tiles:
         name=f'hoop-{tile.row+1}-{tile.column+1}'; native=f'{name}.morale'
         tile.project.save(root/native)
-        if extension: export_machine(tile.project,root/f'{name}{extension}')
-        manifest['tiles'].append({'id':name,'center':tile.center,'core':tile.core,'project':native,'machine':f'{name}{extension}' if extension else None,'stitches':sum(s.command=='stitch' for b in generate(tile.project) for s in b.stitches),'marks':tile.marks})
+        preparation=export_machine(tile.project,root/f'{name}{extension}') if extension else None
+        manifest['tiles'].append({'id':name,'center':tile.center,'core':tile.core,'project':native,'machine':f'{name}{extension}' if extension else None,'stitches':sum(s.command=='stitch' for b in generate(tile.project) for s in b.stitches),'marks':tile.marks,'export_preparation':preparation})
     image=overview(project,plan)
     if not image.save(str(root/'placement.png')): raise OSError('Could not write the hoop overview.')
     map_pdf(image,manifest,root/'placement.pdf')
@@ -96,6 +100,12 @@ def build_bundle(project,root,options):
         for tile in manifest['tiles']:
             for mark in tile['marks']:
                 x,y=mark['position']; writer.writerow([mark['id'],tile['id'],f'{x:.6f}',f'{y:.6f}',f'{x-tile["center"][0]:.6f}',f'{y-tile["center"][1]:.6f}'])
+    with (root/'placements.csv').open('w',encoding='utf-8',newline='') as stream:
+        writer=csv.writer(stream);writer.writerow(['Hoop','Source X mm','Source Y mm','Native stitches','Prepared stitches','Added needle positions','Machine file'])
+        for tile in manifest['tiles']:
+            preparation=tile['export_preparation']
+            writer.writerow([tile['id'],f"{tile['center'][0]:.6f}",f"{tile['center'][1]:.6f}",tile['stitches'],
+                             preparation['prepared_stitches'] if preparation else '',preparation['subdivision_added_stitches'] if preparation else '',tile['machine'] or ''])
     (root/'plan.json').write_text(json.dumps(manifest,indent=2),encoding='utf-8')
     (root/'README.txt').write_text('\n\n'.join(manifest['notes']),encoding='utf-8')
     return manifest

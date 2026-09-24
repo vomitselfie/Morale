@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QTableW
 from .engine import generate
 from .formats import import_machine
 from .threads import thread_key, usage
+from .path_fidelity import compare_sewn_paths
 
 
 def command_metrics(blocks):
@@ -36,6 +37,7 @@ def compare_commands(source,decoded):
     b=[s for block in decoded for s in block.stitches]
     same=len(a)==len(b) and all(x.command==y.command for x,y in zip(a,b))
     return {'source':command_metrics(source),'decoded':command_metrics(decoded),
+            'sewn_geometry':compare_sewn_paths(source,decoded),
             'same_command_sequence':same,
             'maximum_indexed_displacement_mm':max((math.dist((x.x,x.y),(y.x,y.y)) for x,y in zip(a,b)),default=0) if same else None}
 
@@ -69,6 +71,8 @@ class ComparisonView(QWidget):
         self.paths=[command_paths(source),command_paths(decoded)]
         self.visible=[True,True]
         self.travel=False
+        self.deviations=[]
+        self.show_deviations=False
         self.scale=5
         self.pan=QPointF()
         self.dragging=None
@@ -101,6 +105,9 @@ class ComparisonView(QWidget):
             if self.travel:
                 painter.setPen(QPen(color,1/self.scale,Qt.PenStyle.DashLine))
                 painter.drawPath(travel)
+        if self.show_deviations:
+            painter.setPen(QPen(QColor('#d67700'),1.5/self.scale))
+            for x,y in self.deviations:painter.drawEllipse(QPointF(x,y),4/self.scale,4/self.scale)
 
     def wheelEvent(self,event):
         origin=QPointF(self.width()/2,self.height()/2)
@@ -134,11 +141,16 @@ class ComparisonDialog(QDialog):
         text.setWordWrap(True)
         layout.addWidget(text)
         self.view=ComparisonView(source,decoded)
+        geometry=report['sewn_geometry']
+        self.view.deviations=geometry['decoded_outside_source']['locations']+geometry['source_outside_decoded']['locations']
         layout.addWidget(self.view,1)
         controls=QHBoxLayout()
         self.source_toggle=QCheckBox('Current design')
         self.decoded_toggle=QCheckBox('Decoded file')
         self.travel_toggle=QCheckBox('Travel paths')
+        self.deviation_toggle=QCheckBox('Mark sampled path differences')
+        self.deviation_toggle.toggled.connect(self.set_deviations)
+        controls.addWidget(self.deviation_toggle)
         for index,toggle in enumerate([self.source_toggle,self.decoded_toggle]):
             toggle.setChecked(True)
             toggle.toggled.connect(lambda checked,i=index:self.set_visible(i,checked))
@@ -177,6 +189,12 @@ class ComparisonDialog(QDialog):
         note=QLabel(comparison+f" Thread RGB order: {'same' if a['thread_rgb']==b['thread_rgb'] else 'different'}.\nMatching metrics do not establish equivalent sewing. Writers and readers can normalize controls, colors, and travel. Physical machine behavior remains unverified.")
         note.setWordWrap(True)
         layout.addWidget(note)
+        descriptions=[]
+        for key,label in [('decoded_outside_source','Decoded sewing outside source paths'),('source_outside_decoded','Source sewing missing from decoded paths')]:
+            metric=geometry[key]
+            descriptions.append(f"{label}: approximately {metric['estimated_outside_length_mm']:.2f} mm"+(' (partial check)' if not metric['complete'] else '')+'.')
+        self.geometry_note=QLabel(' '.join(descriptions)+' Sampled every 0.25 mm with 0.15 mm tolerance; orange marks show up to 100 locations per direction. Sampling can miss short deviations and does not check sewing order or thread color.')
+        self.geometry_note.setWordWrap(True);layout.addWidget(self.geometry_note)
         self.setToolTip('\n'.join(notices))
         close=QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         close.rejected.connect(self.reject)
@@ -193,4 +211,8 @@ class ComparisonDialog(QDialog):
 
     def set_travel(self,checked):
         self.view.travel=checked
+        self.view.update()
+
+    def set_deviations(self,checked):
+        self.view.show_deviations=checked
         self.view.update()

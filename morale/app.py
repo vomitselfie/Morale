@@ -42,7 +42,7 @@ from .clipboard import MIME_TYPE, encode_objects, decode_objects
 from .applique import AppliqueDialog, applique_stages
 from .batch_dialog import BatchDialog
 from .engine import generate, preflight
-from .formats import export_machine, import_machine, file_filters, export_notes, IMPORT_FORMATS, EXPORT_FORMATS
+from .formats import export_machine, import_machine, file_filters, export_notes, export_summary, IMPORT_FORMATS, EXPORT_FORMATS
 
 STYLE = """
 QMainWindow, QWidget { background: #f7f8f4; color: #293e35; font-family: 'Segoe UI', 'Noto Sans', sans-serif; font-size: 13px; }
@@ -164,7 +164,7 @@ class MainWindow(QMainWindow):
         file.addAction(self.action("Batch convert machine files…", self.batch_convert))
         file.addAction(self.action("Import reference image…", self.add_reference))
         file.addAction(self.action("Import SVG artwork…", self.import_svg_artwork))
-        file.addAction(self.action("Digitize raster artwork…",self.digitize_raster))
+        file.addAction(self.action("Digitize artwork…",self.digitize_raster))
         file.addAction(self.action("Recover interrupted session…", self.recover_session))
         file.addAction(self.action("&Save project", self.save, QKeySequence.StandardKey.Save))
         file.addAction(self.action("Save project &as…", lambda: self.save(True), QKeySequence.StandardKey.SaveAs))
@@ -203,6 +203,7 @@ class MainWindow(QMainWindow):
             handles.addAction(action)
         edit.addAction(self.action("Edit individual stitches…", self.edit_stitches, "Ctrl+Shift+E"))
         edit.addAction(self.action("Add lettering…", self.add_lettering, "Ctrl+L"))
+        edit.addAction(self.action("Add lettering along path…", self.add_path_lettering))
         edit.addAction(self.action("Edit lettering…", self.edit_lettering))
         edit.addAction(self.action("Create appliqué stages…", self.create_applique))
         edit.addAction(self.action("Thread catalog / match colors…",self.thread_catalog_dialog))
@@ -254,6 +255,10 @@ class MainWindow(QMainWindow):
         snap.setCheckable(True)
         snap.toggled.connect(lambda checked: self.set_snap(checked))
         view.addAction(snap)
+        self.object_snap_action=QAction('Snap to object edges and centers',self)
+        self.object_snap_action.setCheckable(True)
+        self.object_snap_action.toggled.connect(self.set_object_snap)
+        view.addAction(self.object_snap_action)
         view.addAction(self.action("Grid spacing…", self.grid_spacing_dialog))
         for key,title in [("show_travel","Show travel moves"),("show_controls","Show trims, stops and thread changes")]:
             action = QAction(title,self)
@@ -360,6 +365,8 @@ class MainWindow(QMainWindow):
         self.canvas.moved.connect(self.move_object)
         self.canvas.node_edited.connect(self.edit_canvas_node)
         self.canvas.stitch_moved.connect(self.edit_canvas_stitch)
+        self.canvas.stitches_moved.connect(self.edit_canvas_stitches)
+        self.canvas.stitches_deleted.connect(self.delete_canvas_stitches)
         self.canvas.drawn.connect(self.add_shape)
         self.canvas.message.connect(self.statusBar().showMessage)
         self.canvas.measured.connect(lambda dx, dy, distance: self.statusBar().showMessage(f"Distance {dimension(distance, self.unit)} · ΔX {dimension(dx, self.unit)} · ΔY {dimension(dy, self.unit)}"))
@@ -461,6 +468,8 @@ class MainWindow(QMainWindow):
         form.addRow(self.gradient_reverse)
         self.add_spin(form, "stitch_length", "Max. length", .5, 6, .1, " mm")
         self.add_spin(form,"minimum_stitch","Short-stitch cleanup",0,1,.05," mm")
+        self.add_spin(form,'jump_trim','Trim internal travel above',0,50,.5,' mm')
+        self.fields['jump_trim'].setToolTip('Zero disables. Trim longer internal jump sequences and lock the surrounding sewn runs. Initial/final travel and imported manual stitches are unchanged.')
         self.fields["minimum_stitch"].setToolTip("Remove redundant short interior stitches within 0.01 mm path tolerance. Keep endpoints, sharp corners, reversals and finishing ties. Some necessary short stitches remain. Zero disables cleanup; imported manual stitches are unchanged.")
         self.add_spin(form, "angle", "Fill angle", -360, 360, 5, "°")
         self.add_spin(form, "satin_max", "Satin split limit", .5, 12, .5, " mm")
@@ -479,7 +488,7 @@ class MainWindow(QMainWindow):
         self.add_spin(form,"underlay_spacing","Underlay row spacing",.5,10,.1," mm")
         self.fields["underlay_inset"].setToolTip("Inset support stitches from the outline. Narrow fill regions can lose their underlay; fully collapsed satin support rails use a center run. Cover stitches are unchanged.")
         self.finishing = {}
-        for key, title in [("connect_fill", "Connect safe fill rows"), ("tie_in", "Tie in each sewn run"), ("tie_off", "Tie off each sewn run"), ("trim_after", "Trim after object"), ("stop_after", "Operator stop after object")]:
+        for key, title in [("connect_fill", "Connect safe fill rows"), ("route_fill", "Route disconnected fill runs (up to 2,000)"), ("tie_in", "Tie in each sewn run"), ("tie_off", "Tie off each sewn run"), ("trim_after", "Trim after object"), ("stop_after", "Operator stop after object")]:
             control = QCheckBox(title)
             control.toggled.connect(lambda checked, k=key: self.update_property(k, checked))
             self.finishing[key] = control
@@ -736,6 +745,7 @@ class MainWindow(QMainWindow):
                 self.stitch_type.model().item(index).setEnabled(enabled)
             self.fields["stitch_length"].setEnabled(obj.kind != "stitches")
             self.fields["minimum_stitch"].setEnabled(obj.kind != "stitches")
+            self.fields['jump_trim'].setEnabled(obj.kind!='stitches')
             self.motif_pattern.setCurrentIndex(self.motif_pattern.findData(obj.motif_pattern))
             custom_index=self.motif_pattern.findData('custom')
             self.motif_pattern.model().item(custom_index).setEnabled(bool(obj.custom_motif_paths))
@@ -769,7 +779,7 @@ class MainWindow(QMainWindow):
             self.fields["underlay_inset"].setEnabled(active and not (obj.kind == "satin" and obj.underlay_style == "auto"))
             self.fields["underlay_spacing"].setEnabled(active and obj.underlay_style in {"sparse","edge_sparse","zigzag","center_zigzag"})
             for key, control in self.finishing.items():
-                control.setEnabled(obj.stitch_type == "fill" if key == "connect_fill" else obj.kind != "stitches")
+                control.setEnabled(obj.stitch_type == "fill" if key in {"connect_fill","route_fill"} else obj.kind != "stitches")
                 control.setChecked(getattr(obj, key))
             self.points_button.setEnabled(obj.kind in {"path", "polygon", "satin", "compound"})
         self.syncing = False
@@ -819,6 +829,8 @@ class MainWindow(QMainWindow):
         focused = self.text_clipboard_target()
         if focused:
             focused.selectAll()
+        elif self.canvas.hasFocus() and self.canvas.mode=='stitch_nodes':
+            self.canvas.select_all_stitches()
         else:
             self.select_many([obj.id for obj in self.project.objects])
 
@@ -894,7 +906,7 @@ class MainWindow(QMainWindow):
         elif mode == "nodes":
             self.statusBar().showMessage("Drag a node on the selected polygon, path, satin column, or compound shape. Escape cancels; releasing regenerates stitches. Grid snapping applies.")
         elif mode == "stitch_nodes":
-            self.statusBar().showMessage("Click or drag a needle position on one selected object. [ / ] selects adjacent positions; arrows move 0.1 mm, Shift+arrows 1 mm, or one grid step when snapping. Moving converts generated objects to manual stitches; Undo restores geometry.")
+            self.statusBar().showMessage("Click or drag needle positions on one selected object. Ctrl-click toggles; Shift-click selects a range; drag empty space to box-select, Ctrl/Shift adds and Alt removes; Shift+[ / ] extends selection. Ctrl+A selects all needle positions; Delete removes selected positions. [ / ] selects adjacent positions; arrows move 0.1 mm, Shift+arrows 1 mm, or one grid step when snapping. Moving converts generated objects to manual stitches; Undo restores geometry.")
 
     def add_shape(self, kind, points):
         if len(self.project.objects) >= 500:
@@ -1021,6 +1033,24 @@ class MainWindow(QMainWindow):
             except ValueError as exc:
                 self.error(str(exc))
 
+    def add_path_lettering(self):
+        selected = self.selected_objects()
+        if len(selected) != 1 or selected[0].kind not in {"path", "polygon"}:
+            self.statusBar().showMessage("Select one drawn path or polygon for the lettering baseline.")
+            return
+        guide = selected[0]
+        baseline = list(guide.outline())
+        if guide.kind == "polygon" and baseline and baseline[-1] != baseline[0]:
+            baseline.append(baseline[0])
+        dialog = LetteringDialog(parent=self, baseline=baseline)
+        if dialog.exec() == dialog.DialogCode.Accepted:
+            try:
+                dialog.candidate.color = guide.color
+                dialog.candidate.thread = dict(guide.thread)
+                self.apply_lettering(dialog.candidate, hide_guide_id=None if dialog.keep_baseline.isChecked() else guide.id)
+            except ValueError as exc:
+                self.error(str(exc))
+
     def create_applique(self):
         if not self.selected_object():
             self.statusBar().showMessage("Select a closed outline first.")
@@ -1028,17 +1058,19 @@ class MainWindow(QMainWindow):
         dialog = AppliqueDialog(self)
         if dialog.exec() == dialog.DialogCode.Accepted:
             try:
-                self.apply_applique(dialog.border_width.value())
+                self.apply_applique(dialog.border_width.value(),dialog.cover_mode.currentData())
             except ValueError as exc:
                 self.error(str(exc))
 
-    def apply_applique(self, border_width):
+    def apply_applique(self, border_width,cover_mode='fill'):
         obj = self.selected_object()
         if not obj:
             raise ValueError("Select a closed outline first.")
         if len(self.project.objects) + 2 > 500:
             raise ValueError("Appliqué stages would exceed the 500-object limit.")
-        stages = applique_stages(obj, border_width)
+        stages = applique_stages(obj, border_width,cover_mode)
+        if len(self.project.objects)-1+len(stages)>500:
+            raise ValueError('Appliqué borders would exceed the 500-object limit.')
         combined = deepcopy(self.project)
         index = self.project.objects.index(obj)
         combined.objects[index:index + 1] = stages
@@ -1078,8 +1110,13 @@ class MainWindow(QMainWindow):
             except ValueError as exc:
                 self.error(str(exc))
 
-    def apply_lettering(self, candidate, replace=False):
+    def apply_lettering(self, candidate, replace=False, hide_guide_id=None):
         combined = deepcopy(self.project)
+        if hide_guide_id is not None:
+            guide = next((obj for obj in combined.objects if obj.id == hide_guide_id), None)
+            if guide is None:
+                raise ValueError("The lettering baseline no longer exists.")
+            guide.visible = False
         if replace:
             index = next(i for i, obj in enumerate(self.project.objects) if obj.id == candidate.id)
             combined.objects[index] = candidate
@@ -1119,6 +1156,34 @@ class MainWindow(QMainWindow):
         except ValueError as exc:
             self.statusBar().showMessage(f"Stitch move rejected: {exc}")
             self.canvas.update()
+
+    def edit_canvas_stitches(self,object_id,indices,dx,dy):
+        obj=self.selected_object()
+        block=next((b for b in self.blocks if b.object_id==object_id),None)
+        if not obj or obj.id!=object_id or block is None:return
+        if not isinstance(indices,(list,tuple)) or not indices or any(type(i) is not int or not 0<=i<len(block.stitches) or block.stitches[i].command not in {'stitch','jump'} for i in indices):return
+        if (dx,dy)==(0,0):return
+        rows=[[s.x,s.y,s.command] for s in block.stitches]
+        for i in set(indices):rows[i][:2]=[rows[i][0]+dx,rows[i][1]+dy]
+        try:
+            self.replace_stitches(rows);self.canvas.announce_stitch()
+        except ValueError as exc:
+            self.statusBar().showMessage(f'Stitch move rejected: {exc}');self.canvas.update()
+
+    def delete_canvas_stitches(self,object_id,indices):
+        obj=self.selected_object()
+        block=next((b for b in self.blocks if b.object_id==object_id),None)
+        if not obj or obj.id!=object_id or block is None or not indices:return
+        from .stitch_edit import delete_needle_positions
+        try:
+            rows,added=delete_needle_positions([[s.x,s.y,s.command] for s in block.stitches],indices)
+            self.replace_stitches(rows)
+            focus=min((i for i,row in enumerate(rows) if row[2] in {'stitch','jump'}),key=lambda i:abs(i-min(indices)))
+            self.canvas.stitch_selection=(object_id,focus);self.canvas.stitch_multi=(object_id,{focus})
+            self.canvas.update()
+            self.statusBar().showMessage(f'Deleted {len(set(indices))} needle positions. Retained controls follow the preceding position.'+(' Added an entry jump at the first remaining position.' if added else ''))
+        except ValueError as exc:
+            self.statusBar().showMessage(f'Stitch deletion rejected: {exc}');self.canvas.update()
 
     def edit_canvas_node(self, object_id, rings):
         obj = self.selected_object()
@@ -1395,6 +1460,10 @@ class MainWindow(QMainWindow):
         self.canvas.snap_grid = checked
         self.statusBar().showMessage("Grid snapping enabled: drawing points and the dragged object's center snap to the displayed grid." if checked else "Grid snapping disabled.")
 
+    def set_object_snap(self,checked):
+        self.canvas.snap_objects=checked;self.canvas.snap_guides=(None,None);self.canvas.update()
+        self.statusBar().showMessage('Object snapping enabled: drag selection bounds within 8 screen pixels of visible edges or centers. Object alignment takes priority over grid snapping on matched axes.' if checked else 'Object snapping disabled.')
+
     def grid_spacing_dialog(self):
         value, accepted = QInputDialog.getDouble(self, "Grid spacing", f"Spacing ({self.unit})", self.canvas.grid_step() / factor(self.unit), .1 / factor(self.unit), 100 / factor(self.unit), 4)
         if accepted:
@@ -1548,7 +1617,7 @@ class MainWindow(QMainWindow):
         except (OSError, ValueError) as exc:
             self.error(str(exc))
 
-    def apply_catalog_threads(self,entries,nearest=False):
+    def apply_catalog_threads(self,entries,nearest=False,metric="rgb"):
         objects=self.selected_objects()
         if not objects:
             raise ValueError("Select objects to assign catalog threads.")
@@ -1558,7 +1627,7 @@ class MainWindow(QMainWindow):
         combined=deepcopy(self.project)
         for obj in combined.objects:
             if obj.id in selected:
-                entry=nearest_thread(obj.color,entries) if nearest else entries[0]
+                entry=nearest_thread(obj.color,entries,metric) if nearest else entries[0]
                 obj.color=entry.color
                 obj.thread=dict(entry.metadata)
         Project.loads(combined.dumps())
@@ -1571,12 +1640,13 @@ class MainWindow(QMainWindow):
         if not objects:
             self.statusBar().showMessage("Select objects to assign or match thread colors.")
             return
-        dialog=CatalogDialog(objects[0].color,len(objects),self,getattr(self,"thread_catalog",None))
+        dialog=CatalogDialog(objects[0].color,len(objects),self,getattr(self,"thread_catalog",None),metric=getattr(self,"thread_match_metric","oklab"),colors=[obj.color for obj in objects])
         try:
             accepted=dialog.exec()==dialog.DialogCode.Accepted
             self.thread_catalog=(dialog.catalog_name,dialog.catalog)
+            self.thread_match_metric=dialog.metric_choice.currentData()
             if accepted:
-                self.apply_catalog_threads(dialog.candidates if dialog.mode=='nearest' else [dialog.entry],dialog.mode=='nearest')
+                self.apply_catalog_threads(dialog.candidates if dialog.mode=='nearest' else [dialog.entry],dialog.mode=='nearest',dialog.metric_choice.currentData())
         except ValueError as exc:
             self.error(str(exc))
         finally:
@@ -1656,15 +1726,21 @@ class MainWindow(QMainWindow):
         for obj in objects:
             obj.id=uuid.uuid4().hex
         combined.objects.extend(objects)
+        if project.reference:
+            decode_reference(project.reference)
+            combined.reference=deepcopy(project.reference)
         Project.loads(combined.dumps())
         generate(combined)
         self._selected_id=objects[0].id
         self.selected_ids={obj.id for obj in objects}
-        self.commit(lambda:setattr(self.project,'objects',combined.objects))
+        def apply():
+            self.project.objects=combined.objects
+            self.project.reference=combined.reference
+        self.commit(apply)
         self.set_mode('select')
 
     def digitize_raster(self):
-        path,_=QFileDialog.getOpenFileName(self,'Digitize raster artwork','','Raster artwork (*.png *.jpg *.jpeg *.bmp *.webp)')
+        path,_=QFileDialog.getOpenFileName(self,'Digitize artwork','','Artwork (*.svg *.png *.jpg *.jpeg *.bmp *.webp)')
         if path:
             dialog=TraceDialog(path,self)
             try:
@@ -1840,9 +1916,9 @@ class MainWindow(QMainWindow):
             if not self.confirm_replacement(path):
                 return
         try:
-            export_machine(self.project, path, self.blocks, pes_version=1 if "PES v1" in selected_filter else 6)
-            self.statusBar().showMessage(f"Exported {path.name} · Keep your .morale project for editing")
-            notes = export_notes(path.suffix.lower(), 1 if "PES v1" in selected_filter else 6)
+            result=export_machine(self.project, path, self.blocks, pes_version=1 if "PES v1" in selected_filter else 6)
+            self.statusBar().showMessage(f"Exported {path.name} · {result['prepared_stitches']:,} stitches prepared · {result['subdivision_added_stitches']:,} positions added")
+            notes = [export_summary(result),*export_notes(path.suffix.lower(), 1 if "PES v1" in selected_filter else 6)]
             QMessageBox.information(self, "Stitches exported", f"Saved {path.name}.\n\n" + "\n\n".join(notes) + "\n\nTest on scrap fabric. Keep your editable .morale project.")
         except Exception as exc:
             self.error(f"Could not export the machine file.\n{exc}")
@@ -1951,6 +2027,12 @@ class MainWindow(QMainWindow):
 
 
 def main():
+    if len(sys.argv)>1 and sys.argv[1]=='--library-search-worker':
+        from .library_search import worker_main
+        sys.exit(worker_main(sys.argv[2:]))
+    if len(sys.argv)>1 and sys.argv[1]=='--self-test':
+        from .self_test import worker_main
+        sys.exit(worker_main(sys.argv[2:]))
     if len(sys.argv)>1 and sys.argv[1]=='--generation-worker':
         from .generation import worker_main
         sys.exit(worker_main(sys.argv[2:]))

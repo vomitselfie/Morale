@@ -7,7 +7,7 @@ from pathlib import Path
 import sys
 
 from PySide6.QtCore import Qt,QBuffer,QByteArray,QIODevice
-from PySide6.QtGui import QImageReader,QPainterPath
+from PySide6.QtGui import QImageReader,QPainterPath,QColorSpace,QImage
 
 from .model import Project,DesignObject
 from .engine import generate
@@ -36,11 +36,32 @@ def reduce_colors(histogram,count):
     return [tuple(round(sum(c[k]*histogram[c] for c in box)/sum(histogram[c] for c in box)) for k in range(3)) for box in boxes]
 
 
-def trace_image(path,width=80,colors=6,resolution=128,ignore_white=True,minimum_region=4):
+def srgb_image(image):
+    source=image.colorSpace();target=QColorSpace(QColorSpace.NamedColorSpace.SRgb)
+    assumed=not source.isValid()
+    if assumed:
+        result=image.convertToFormat(QImage.Format.Format_RGBA8888)
+        result.setColorSpace(target)
+    else:
+        result=image.convertedToColorSpace(target,QImage.Format.Format_RGBA8888)
+        if result.isNull(): raise ValueError('Could not convert the embedded image profile to sRGB.')
+    return result,{'source':source.description()[:200] if not assumed else 'No usable embedded profile',
+                   'target':'sRGB','assumed':assumed,'converted':not assumed and source!=target}
+
+
+def trace_image(path,width=80,colors=6,resolution=128,ignore_white=True,minimum_region=4,method='pixels',smoothing=.15,palette_metric='rgb',border_white=False):
     if isinstance(width,bool) or not isinstance(width,(int,float)) or not math.isfinite(width) or not 1<=width<=300:
         raise ValueError('Choose a tracing width from 1 to 300 mm.')
-    if type(colors) is not int or not 1<=colors<=16 or type(resolution) is not int or resolution not in {64,128,256} or type(ignore_white) is not bool or type(minimum_region) is not int or not 1<=minimum_region<=100:
+    if not isinstance(method,str) or method not in {'pixels','smooth'}:
+        raise ValueError('Choose pixel or smooth tracing.')
+    if isinstance(smoothing,bool) or not isinstance(smoothing,(int,float)) or not math.isfinite(smoothing) or not 0<=smoothing<=1:
+        raise ValueError('Smoothing must be between 0 and 1 mm.')
+    resolutions={64,128,256} if method=='pixels' else {64,128,256,512,1024}
+    if type(colors) is not int or not 1<=colors<=16 or type(resolution) is not int or resolution not in resolutions or type(ignore_white) is not bool or type(minimum_region) is not int or not 1<=minimum_region<=100:
         raise ValueError('Invalid raster tracing settings.')
+    if type(border_white) is not bool:raise ValueError('Invalid border background setting.')
+    if not isinstance(palette_metric,str) or palette_metric not in {'rgb','oklab'}:
+        raise ValueError('Choose RGB or Oklab palette reduction.')
     path=Path(path)
     if path.stat().st_size>20_000_000:
         raise ValueError('Raster files are limited to 20 MB.')
@@ -54,12 +75,25 @@ def trace_image(path,width=80,colors=6,resolution=128,ignore_white=True,minimum_
     image=reader.read()
     if image.isNull():
         raise ValueError('Could not decode the raster image.')
+    image,color_profile=srgb_image(image)
     height=width*image.height()/image.width()
     if height>500 or height<.1:
         raise ValueError('Resulting height must be between 0.1 and 500 mm. Change width or crop the image.')
     scale=min(1,resolution/max(image.width(),image.height()))
     if scale<1:
         image=image.scaled(max(1,round(image.width()*scale)),max(1,round(image.height()*scale)),Qt.AspectRatioMode.IgnoreAspectRatio,Qt.TransformationMode.SmoothTransformation)
+    source_image=image
+    background={'mode':'all_white' if ignore_white else 'none'}
+    if ignore_white and border_white:
+        from .background_removal import remove_border_white
+        image,background=remove_border_white(image);ignore_white=False
+    if method=='smooth':
+        from .smooth_trace import trace_regions
+        project,image,stats=trace_regions(image,width,height,colors,ignore_white,minimum_region,smoothing,path.stem,palette_metric)
+        stats['color_profile']=color_profile
+        stats['background_removal']=background
+        stats['artwork_size_mm']=[width,height]
+        return project,source_image,stats
     w,h=image.width(),image.height()
     pixels=[]
     for y in range(h):
@@ -74,8 +108,10 @@ def trace_image(path,width=80,colors=6,resolution=128,ignore_white=True,minimum_
     histogram=Counter(p for p in pixels if p is not None)
     if not histogram:
         raise ValueError('No visible colored pixels remain. Include white or choose another image.')
-    palette=reduce_colors(histogram,colors)
-    mapping={color:min(range(len(palette)),key=lambda i:sum((a-b)**2 for a,b in zip(color,palette[i]))) for color in histogram}
+    from .raster_palette import quantize
+    palette,color_mapping,palette_report=quantize(histogram,colors,palette_metric)
+    indices={color:i for i,color in enumerate(palette)}
+    mapping={color:indices[target] for color,target in color_mapping.items()}
     labels=[mapping[p] if p is not None else None for p in pixels]
     visited=set()
     removed=0
@@ -140,25 +176,138 @@ def trace_image(path,width=80,colors=6,resolution=128,ignore_white=True,minimum_
         generate(project)
     except ValueError as exc:
         raise ValueError(f'Trace exceeds supported geometry or stitch limits. Reduce resolution/colors or simplify the artwork. {exc}') from exc
-    return project,image,{'resolution':[w,h],'palette':len(objects),'omitted_pixels':removed}
+    return project,source_image,{'background_removal':background,'resolution':[w,h],'palette':len(objects),'omitted_pixels':removed,'palette_reduction':palette_report,'color_profile':color_profile,'artwork_size_mm':[width,height]}
 
 
 def worker_main(args):
+    # Density labels require Qt's font database even in a windowless worker.
+    import os
+    from PySide6.QtGui import QGuiApplication
+    os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
+    application=QGuiApplication.instance() or QGuiApplication([])
     if len(args)!=3: return 2
     source,output,options=args
     root=Path(output)
     try:
         before=Path(source).stat()
-        project,image,stats=trace_image(source,**json.loads(options))
+        settings=json.loads(options)
+        stitch_mode=settings.pop('stitch_mode','fill')
+        stitch_settings=settings.pop('stitch_settings',{})
+        overrides=settings.pop('stitch_overrides',{})
+        seams=settings.pop('band_seams',{})
+        branching=settings.pop('split_branches',False)
+        finishing=settings.pop('finish_regions',False)
+        trim_threshold=settings.pop('trim_threshold',5)
+        internal_trims=settings.pop('internal_trims',False)
+        keep_reference=settings.pop('keep_reference',False)
+        expand_strokes=settings.pop('expand_strokes',False)
+        remove_overlap=settings.pop('remove_overlap',False)
+        overlap_allowance=settings.pop('overlap_allowance',.2)
+        minimum_fill_area=settings.pop('minimum_fill_area',0)
+        minimum_hole_area=settings.pop('minimum_hole_area',0)
+        if type(remove_overlap) is not bool:raise ValueError('Invalid overlap removal setting.')
+        if type(expand_strokes) is not bool:raise ValueError('Invalid SVG stroke expansion setting.')
+        if type(keep_reference) is not bool:raise ValueError('Invalid artwork reference setting.')
+        if type(finishing) is not bool: raise ValueError('Invalid automatic finishing setting.')
+        if type(branching) is not bool: raise ValueError('Invalid branch splitting setting.')
+        route=settings.pop('reduce_travel',False)
+        optimize_angles=settings.pop('optimize_fill_angles',False)
+        route_fill=settings.pop('route_fill',False)
+        if type(route_fill) is not bool:raise ValueError('Invalid fill-run routing setting.')
+        if type(optimize_angles) is not bool:raise ValueError('Invalid fill-angle optimization setting.')
+        reverse=settings.pop('reverse_for_travel',False)
+        thread_catalog=settings.pop('thread_catalog','')
+        color_metric=settings.pop('color_metric','oklab')
+        if type(route) is not bool: raise ValueError('Invalid travel ordering setting.')
+        if Path(source).suffix.lower()=='.svg':
+            from .vector_artwork import vector_artwork
+            project,image,stats=vector_artwork(source,expand_strokes=expand_strokes,**settings)
+        else:project,image,stats=trace_image(source,**settings)
+        if remove_overlap:
+            from .trace_overlap import remove_covered_fill
+            project,stats['overlap']=remove_covered_fill(project,overlap_allowance)
+        from .trace_details import filter_small_fills,fill_small_holes
+        project,stats['hole_filter']=fill_small_holes(project,minimum_hole_area)
+        project,stats['detail_filter']=filter_small_fills(project,minimum_fill_area)
+        if branching:
+            from .branch_regions import split_branches
+            project,stats['branch_splits']=split_branches(project)
+        from .auto_digitize import choose_stitches
+        project,stats['stitch_decisions']=choose_stitches(project,stitch_mode,overrides,seams)
+        from .trace_stitch_settings import apply_stitch_settings
+        project,stats['stitch_settings']=apply_stitch_settings(project,stitch_settings)
+        if route_fill:
+            for obj in project.objects:
+                if obj.stitch_type=='fill':obj.route_fill=True
+        if optimize_angles:
+            from .trace_angles import choose_fill_angles
+            project,stats['fill_angles']=choose_fill_angles(project)
+        from .trace_threads import match_trace_threads
+        project,stats['thread_matches']=match_trace_threads(project,thread_catalog,color_metric)
+        stats['thread_colors']=len({obj.color.lower() for obj in project.objects})
+        if route:
+            from .trace_routing import reduce_travel
+            project,stats['routing']=reduce_travel(project,reverse)
+        if finishing:
+            from .trace_finishing import finish_regions
+            project,stats['finishing']=finish_regions(project,trim_threshold,internal_trims)
+        from .trace_quality import conversion_quality
+        blocks=generate(project)
+        stats['quality']=conversion_quality(project,blocks)
+        from .density_review import measure_density,measure_thread_density,render_density
+        stats['quality']['density'],density_cells=measure_density(blocks)
+        density_image=render_density(stats['quality']['density'],density_cells)
+        density_data=QByteArray();density_buffer=QBuffer(density_data)
+        density_buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+        if not density_image.save(density_buffer,'PNG'):raise ValueError('Could not render the density review.')
+        density_png=base64.b64encode(bytes(density_data)).decode('ascii')
+        stats['quality']['thread_density'],thread_cells=measure_thread_density(blocks)
+        thread_image=render_density(stats['quality']['thread_density'],thread_cells,thread_length=True)
+        thread_data=QByteArray();thread_buffer=QBuffer(thread_data);thread_buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+        if not thread_image.save(thread_buffer,'PNG'):raise ValueError('Could not render the thread density review.')
+        thread_density_png=base64.b64encode(bytes(thread_data)).decode('ascii')
+        stats['quality']['thread_matches']=stats['thread_matches']
+        stats['quality']['background_removal']=stats.get('background_removal')
+        stats['quality']['color_profile']=stats['color_profile']
+        stats['quality']['palette_reduction']=stats.get('palette_reduction')
+        stats['quality']['stitch_settings']=stats['stitch_settings']
+        stats['quality']['finishing']=stats.get('finishing')
+        stats['quality']['fill_angles']=stats.get('fill_angles')
+        stats['quality']['routing']=stats.get('routing')
+        stats['quality']['overlap']=stats.get('overlap')
+        stats['quality']['detail_filter']=stats['detail_filter']
+        stats['quality']['hole_filter']=stats['hole_filter']
+        stats['quality']['artwork_notes']=stats.get('notes',[])
+        data=QByteArray();buffer=QBuffer(data)
+        buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+        if not image.save(buffer,'PNG'):raise ValueError('Could not encode the sampled artwork.')
+        raster_png=base64.b64encode(bytes(data)).decode('ascii')
+        if keep_reference:
+            project.reference={'png':raster_png,'name':(Path(source).name+' (sampled)')[:200],
+                'x':0.,'y':0.,'width':stats['artwork_size_mm'][0],'height':stats['artwork_size_mm'][1],
+                'rotation':0.,'opacity':.4,'visible':True}
+            from .reference import validate_reference
+            validate_reference(project.reference)
         project.save(root/'trace.morale')
         from .preview_worker import create_preview
-        create_preview(root/'trace.morale',root)
+        marked_starts={obj.id for obj in project.objects if
+            (obj.kind=='satin' and obj.points[:2]==obj.points[-2:]) or
+            (obj.kind=='path' and obj.points[0]==obj.points[-1])}
+        create_preview(root/'trace.morale',root,marked_starts)
         info=json.loads((root/'preview.json').read_text())
-        data=QByteArray()
-        buffer=QBuffer(data)
-        buffer.open(QIODevice.OpenModeFlag.WriteOnly)
-        image.save(buffer,'PNG')
-        info.update(project=project.dumps(),raster_png=base64.b64encode(bytes(data)).decode('ascii'),trace_stats=stats)
+        info.update(project=project.dumps(),raster_png=raster_png,density_png=density_png,thread_density_png=thread_density_png,trace_svg=stats.pop('svg',''),trace_stats=stats)
+        from .review_panels import aligned_panels
+        from PySide6.QtSvg import QSvgRenderer
+        renderer=QSvgRenderer(info['trace_svg'].encode('utf-8')) if info['trace_svg'] else None
+        panels,frame=aligned_panels(info,image,renderer,blocks=blocks,marked_starts=marked_starts)
+        info['aligned_previews']={}
+        for name,panel in zip(('source','vectors','stitches'),panels):
+            data=QByteArray();buffer=QBuffer(data);buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+            if not panel.save(buffer,'PNG'):raise ValueError('Could not encode the aligned conversion preview.')
+            info['aligned_previews'][name]=base64.b64encode(bytes(data)).decode('ascii')
+        from .inspection_geometry import inspection_layers
+        info['inspection_svg']=inspection_layers(info,blocks,frame,marked_starts)
+        info['preview_frame_mm']=[frame.x(),frame.y(),frame.width(),frame.height()]
         after=Path(source).stat()
         if (before.st_size,before.st_mtime_ns)!=(after.st_size,after.st_mtime_ns):
             raise ValueError('Image changed during tracing. Generate another preview.')

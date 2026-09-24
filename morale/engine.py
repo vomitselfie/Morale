@@ -198,11 +198,37 @@ def satin(points, spacing, maximum, compensation=0):
     return result
 
 
-def finish_stitches(stitches, tie_in=False, tie_off=False, trim_after=False):
+def insert_jump_trims(stitches,threshold):
+    if isinstance(threshold,bool) or not isinstance(threshold,(int,float)) or not math.isfinite(threshold) or not 0<=threshold<=50:
+        raise ValueError('Internal jump trim threshold must be between 0 and 50 mm.')
+    if not threshold:return stitches
+    additions={};last_sewn=None;previous=(0.,0.);start=None;distance=0
+    for index,stitch in enumerate(stitches):
+        point=(stitch.x,stitch.y)
+        if stitch.command=='stitch':
+            if start is not None and last_sewn is not None and distance>threshold:
+                additions[start]=Stitch(*last_sewn,'trim')
+            last_sewn=point;previous=point;start=None;distance=0
+        elif stitch.command=='jump':
+            if last_sewn is not None:
+                if start is None:start=index
+                distance+=math.dist(previous,point)
+            previous=point
+        elif stitch.command=='trim':
+            last_sewn=None;start=None;distance=0
+    result=[]
+    for index,stitch in enumerate(stitches):
+        if index in additions:result.append(additions[index])
+        result.append(stitch)
+    return result
+
+
+def finish_stitches(stitches, tie_in=False, tie_off=False, trim_after=False, jump_trim=0):
     """Add small reversible locking runs to each sewn run, preserving jumps."""
     result = []
     run = []
     anchor = None
+    pending_lock=False
 
     def lock(a, b):
         distance = math.dist((a.x, a.y), (b.x, b.y))
@@ -212,28 +238,31 @@ def finish_stitches(stitches, tie_in=False, tie_off=False, trim_after=False):
         near = Stitch(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t)
         return [near, Stitch(a.x, a.y), near, Stitch(a.x, a.y)]
 
-    def flush():
+    def flush(force_off=False):
+        nonlocal pending_lock
         if not run:
             return
         start = anchor if anchor is not None else run[0]
-        if tie_in:
+        if tie_in or pending_lock:
             first = next((s for s in run if math.dist((s.x, s.y), (start.x, start.y)) >= .05), None)
             if first:
                 result.extend(lock(start, first))
         result.extend(run)
-        if tie_off:
+        if tie_off or force_off:
             candidates = ([anchor] if anchor else []) + run[:-1]
             previous = next((s for s in reversed(candidates) if math.dist((s.x, s.y), (run[-1].x, run[-1].y)) >= .05), None)
             if previous:
                 result.extend(lock(run[-1], previous))
         run.clear()
+        pending_lock=False
 
-    for stitch in stitches:
+    for stitch in insert_jump_trims(stitches,jump_trim):
         if stitch.command == "stitch":
             run.append(stitch)
         else:
-            flush()
+            flush(force_off=bool(jump_trim and stitch.command=='trim'))
             result.append(stitch)
+            if jump_trim and stitch.command=='trim':pending_lock=True
             anchor = stitch
     flush()
     if trim_after and any(s.command == "stitch" for s in result):
@@ -340,11 +369,15 @@ def generate(project):
             if obj.stitch_type == "contour":
                 stitches += contour_fill(rings,obj.spacing,obj.stitch_length)
             else:
-                stitches += fill(rings[0], obj.spacing, obj.stitch_length, obj.angle, obj.connect_fill, rings[1:], obj.pull_compensation,
+                fill_stitches = fill(rings[0], obj.spacing, obj.stitch_length, obj.angle, obj.connect_fill, rings[1:], obj.pull_compensation,
                                  obj.gradient_end_spacing if obj.density_gradient else None, obj.gradient_reverse)
+                if obj.route_fill:
+                    from .fill_routing import route_fill_runs
+                    fill_stitches=route_fill_runs(fill_stitches)
+                stitches += fill_stitches
         if obj.kind != "stitches":
             stitches = short_stitch_cleanup(stitches,obj.minimum_stitch,obj.satin_max if obj.kind == "satin" else obj.stitch_length)
-            stitches = finish_stitches(stitches, obj.tie_in, obj.tie_off, obj.trim_after)
+            stitches = finish_stitches(stitches, obj.tie_in, obj.tie_off, obj.trim_after, obj.jump_trim)
             if obj.stop_after and stitches:
                 stitches.append(Stitch(stitches[-1].x, stitches[-1].y, "stop"))
         total += len(stitches)

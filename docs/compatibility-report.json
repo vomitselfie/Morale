@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-08T20:10:14.626950+00:00",
+  "generated_at": "2026-09-12T14:45:19.384946+00:00",
   "pyembroidery_version": "1.5.1",
   "fixture": "Morale generated wildflower; four consecutive thread groups, negative coordinates, running and fill stitches",
   "scope": "Synthetic writer/reader checks only. No physical sew-out or external-file certification. Reader-only formats are unverified.",
@@ -101,6 +101,7 @@
       ],
       "export_notes": [
         "Format writers may add travel, trims, or zero-length stitches. Review the exported design in the target machine's preview.",
+        "Sewn spans exceeding the format limit are subdivided along their original path; this adds needle positions in the exported file.",
         "This file does not retain RGB thread colors; export a CSV thread chart.",
         "Operator stops are represented as color changes. Reuse the current thread at those pauses."
       ]
@@ -154,6 +155,7 @@
       ],
       "export_notes": [
         "Format writers may add travel, trims, or zero-length stitches. Review the exported design in the target machine's preview.",
+        "Sewn spans exceeding the format limit are subdivided along their original path; this adds needle positions in the exported file.",
         "This file does not retain RGB thread colors; export a CSV thread chart.",
         "Operator stops are represented as color changes. Reuse the current thread at those pauses."
       ]
@@ -221,15 +223,18 @@
           "#e4c35d"
         ],
         "stops": 0,
-        "trims": 12
+        "trims": 0
       },
       "bounds_within_015_mm": true,
       "rgb_retained": false,
       "import_notes": [
-        "Imported stitches retain their stitch count when resized; density is not regenerated."
+        "Imported stitches retain their stitch count when resized; density is not regenerated.",
+        "JEF runs of three stationary jumps are interpreted as trims. Ordinary travel distance does not imply a trim."
       ],
       "export_notes": [
         "Format writers may add travel, trims, or zero-length stitches. Review the exported design in the target machine's preview.",
+        "Sewn spans exceeding the format limit are subdivided along their original path; this adds needle positions in the exported file.",
+        "Explicit trims are encoded as three stationary jumps. Trim execution depends on the Janome machine and its settings.",
         "Colors are mapped to the format's fixed thread palette; keep a CSV chart for the intended colors."
       ]
     },
@@ -313,7 +318,7 @@
       "physical_machine_tested": false,
       "synthetic_roundtrip": "pass",
       "measured": {
-        "stitches": 2487,
+        "stitches": 2233,
         "blocks": 4,
         "bounds_mm": [
           -20.9,
@@ -328,7 +333,7 @@
           "#feb343"
         ],
         "stops": 0,
-        "trims": 370
+        "trims": 366
       },
       "bounds_within_015_mm": true,
       "rgb_retained": false,
@@ -337,8 +342,11 @@
       ],
       "export_notes": [
         "Format writers may add travel, trims, or zero-length stitches. Review the exported design in the target machine's preview.",
+        "Sewn spans exceeding the format limit are subdivided along their original path; this adds needle positions in the exported file.",
         "Colors are mapped to the format's fixed thread palette; keep a CSV chart for the intended colors.",
-        "Same-color thread changes may be decoded as operator stops by PES/PEC readers."
+        "The PEC machine label is limited to eight ASCII characters; PES v6 extended names and thread text use byte-counted UTF-8 fields (255 bytes per field).",
+        "Same-color thread changes may be decoded as operator stops by PES/PEC readers.",
+        "PES/PEC encoding may add sewn points at jump landings, changing the decoded stitch count and sewn bounds."
       ]
     },
     ".pes": {
@@ -349,7 +357,7 @@
       "physical_machine_tested": false,
       "synthetic_roundtrip": "pass",
       "measured": {
-        "stitches": 2487,
+        "stitches": 2233,
         "blocks": 4,
         "bounds_mm": [
           -20.9,
@@ -364,7 +372,7 @@
           "#e9b75e"
         ],
         "stops": 0,
-        "trims": 370
+        "trims": 366
       },
       "bounds_within_015_mm": true,
       "rgb_retained": true,
@@ -373,7 +381,10 @@
       ],
       "export_notes": [
         "Format writers may add travel, trims, or zero-length stitches. Review the exported design in the target machine's preview.",
-        "Same-color thread changes may be decoded as operator stops by PES/PEC readers."
+        "Sewn spans exceeding the format limit are subdivided along their original path; this adds needle positions in the exported file.",
+        "The PEC machine label is limited to eight ASCII characters; PES v6 extended names and thread text use byte-counted UTF-8 fields (255 bytes per field).",
+        "Same-color thread changes may be decoded as operator stops by PES/PEC readers.",
+        "PES/PEC encoding may add sewn points at jump landings, changing the decoded stitch count and sewn bounds."
       ]
     },
     ".phb": {
@@ -473,6 +484,7 @@
       ],
       "export_notes": [
         "Format writers may add travel, trims, or zero-length stitches. Review the exported design in the target machine's preview.",
+        "Sewn spans exceeding the format limit are subdivided along their original path; this adds needle positions in the exported file.",
         "Needle assignments are generated by the writer. Check them against the machine setup."
       ]
     },
@@ -510,6 +522,7 @@
       ],
       "export_notes": [
         "Format writers may add travel, trims, or zero-length stitches. Review the exported design in the target machine's preview.",
+        "Sewn spans exceeding the format limit are subdivided along their original path; this adds needle positions in the exported file.",
         "This file does not retain RGB thread colors; export a CSV thread chart.",
         "Needle assignments are generated by the writer. Check them against the machine setup."
       ]
@@ -525,10 +538,10 @@
         "stitches": 2233,
         "blocks": 4,
         "bounds_mm": [
-          -20.8,
+          -20.9,
           -41.5,
-          20.8,
-          36.5
+          20.9,
+          36.6
         ],
         "colors": [
           "#447568",
@@ -546,7 +559,9 @@
       ],
       "export_notes": [
         "Format writers may add travel, trims, or zero-length stitches. Review the exported design in the target machine's preview.",
-        "Operator stops are represented as color changes. Reuse the current thread at those pauses."
+        "Sewn spans exceeding the format limit are subdivided along their original path; this adds needle positions in the exported file.",
+        "Operator stops are represented as color changes. Reuse the current thread at those pauses.",
+        "The installed VP3 writer omits explicit jump records. Its decoded travel paths can differ from Morale's preview."
       ]
     },
     ".xxx": {
@@ -581,6 +596,7 @@
       ],
       "export_notes": [
         "Format writers may add travel, trims, or zero-length stitches. Review the exported design in the target machine's preview.",
+        "Sewn spans exceeding the format limit are subdivided along their original path; this adds needle positions in the exported file.",
         "Operator stops are represented as color changes. Reuse the current thread at those pauses."
       ]
     },

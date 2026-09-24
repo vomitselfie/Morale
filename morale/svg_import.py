@@ -20,7 +20,15 @@ class SVGImport:
     notices: list
 
 
-def checked_xml(text):
+def paint_order(value='normal'):
+    parts=str(value).split()
+    if parts==['normal']:return ('fill','stroke','markers')
+    if not parts or len(parts)!=len(set(parts)) or any(p not in {'fill','stroke','markers'} for p in parts):
+        raise ValueError('Invalid SVG paint-order; use fill, stroke and/or markers once each.')
+    return tuple(parts+[p for p in ('fill','stroke','markers') if p not in parts])
+
+
+def checked_xml(text, *, allow_dashes=False):
     if "<!DOCTYPE" in text.upper() or "<!ENTITY" in text.upper():
         raise ValueError("SVG document types and entity declarations are not supported.")
     root = ET.fromstring(text)
@@ -48,7 +56,7 @@ def checked_xml(text):
         styles = dict(item.split(":", 1) for item in node.get("style", "").split(";") if ":" in item)
         properties = {**node.attrib, **{k.strip(): v.strip() for k, v in styles.items()}}
         for key in ("clip-path", "mask", "filter", "marker-start", "marker-mid", "marker-end", "stroke-dasharray"):
-            if properties.get(key, "none") != "none":
+            if properties.get(key, "none") != "none" and not (key == "stroke-dasharray" and allow_dashes):
                 raise ValueError(f"SVG {key} needs to be converted to plain paths before import.")
         if "slice" in properties.get("preserveAspectRatio", "") or properties.get("overflow") in {"hidden", "scroll"}:
             raise ValueError("SVG viewport clipping needs to be converted to plain paths before import.")
@@ -79,14 +87,23 @@ def import_svg(path):
     if path.stat().st_size > 2_000_000:
         raise ValueError("SVG artwork is limited to 2 MB.")
     try:
-        text, notices = checked_xml(path.read_text(encoding="utf-8-sig"))
-        document = svg.SVG.parse(io.StringIO(text), ppi=96, reify=True, width=300, height=150, on_error="raise")
-        return convert_document(document, notices)
+        return import_svg_text(path.read_text(encoding="utf-8-sig"))
     except (ET.ParseError, UnicodeError, TypeError, AttributeError, IndexError, ZeroDivisionError, RecursionError, OverflowError) as exc:
         raise ValueError(f"Could not interpret SVG artwork: {exc}") from exc
 
 
-def convert_document(document, notices):
+def import_svg_text(text, *, center_artwork=True):
+    if len(text.encode('utf-8')) > 2_000_000:
+        raise ValueError("SVG artwork is limited to 2 MB.")
+    try:
+        text, notices = checked_xml(text)
+        document = svg.SVG.parse(io.StringIO(text), ppi=96, reify=True, width=300, height=150, on_error="raise")
+        return convert_document(document, notices, center_artwork=center_artwork)
+    except (ET.ParseError, UnicodeError, TypeError, AttributeError, IndexError, ZeroDivisionError, RecursionError, OverflowError) as exc:
+        raise ValueError(f"Could not interpret SVG artwork: {exc}") from exc
+
+
+def convert_document(document, notices, *, center_artwork=True):
     objects = []
     origin = (float(document.width) / 2, float(document.height) / 2)
     def point(p):
@@ -99,6 +116,8 @@ def convert_document(document, notices):
             continue
         if element.values.get("display") == "none" or float(element.values.get("opacity", 1)) == 0:
             continue
+        order=paint_order(element.values.get("paint-order","normal"))
+        first_object=len(objects)
         path = svg.Path(element)
         path.reify()
         if len(path) > 6000:
@@ -186,12 +205,15 @@ def convert_document(document, notices):
                 objects.append(DesignObject(name=name, kind="compound", x=bounds.center().x()/20, y=bounds.center().y()/20,
                     width=bounds.width()/20, height=bounds.height()/20, contours=contours,
                     color=element.fill.hex[:7], underlay=False, connect_fill=True))
+        first_stroke=len(objects)
         if element.stroke.value is not None and element.stroke.alpha and element.stroke_width > 0:
             notices.append("SVG strokes become running centerlines; stroke width, caps, and joins are not embroidery borders.")
             for controls, closed in outlines:
                 source = DesignObject(name=f"{name} · outline", kind="polygon" if closed else "path",
                                       stitch_type="running", color=element.stroke.hex[:7], underlay=False)
                 objects.append(edit_controls(source, controls))
+        if order.index("stroke") < order.index("fill"):
+            objects[first_object:]=objects[first_stroke:]+objects[first_object:first_stroke]
         if len(objects) > 500:
             raise ValueError("SVG import exceeds the 500-object limit.")
     if not objects:
@@ -200,9 +222,10 @@ def convert_document(document, notices):
     points = [p for obj in objects for ring in obj.rings() for p in ring]
     xs, ys = zip(*points)
     dx, dy = (min(xs)+max(xs))/2, (min(ys)+max(ys))/2
-    for obj in objects:
-        obj.x -= dx
-        obj.y -= dy
+    if center_artwork:
+        for obj in objects:
+            obj.x -= dx
+            obj.y -= dy
     project = Project.loads(Project(objects=objects).dumps())
     generate(project)
     return SVGImport(project.objects, list(dict.fromkeys(notices)))

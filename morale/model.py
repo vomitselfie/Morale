@@ -35,6 +35,7 @@ class DesignObject:
     trim_after: bool = False
     satin_max: float = 6
     connect_fill: bool = False
+    route_fill: bool = False
     thread: dict = field(default_factory=dict)
     contours: list = field(default_factory=list)
     lettering: dict = field(default_factory=dict)
@@ -49,6 +50,7 @@ class DesignObject:
     underlay_inset: float = 0
     underlay_spacing: float = 2
     minimum_stitch: float = 0
+    jump_trim: float = 0
     motif_pattern: str = "diamond"
     motif_width: float = 4
     motif_height: float = 3
@@ -168,21 +170,29 @@ class Project:
             if not isinstance(obj.lettering, dict):
                 raise ValueError("Invalid lettering properties.")
             if obj.lettering:
-                if obj.kind != "compound" or not {"text", "family", "height", "spacing"} <= set(obj.lettering) or set(obj.lettering) - {"text", "family", "height", "spacing", "layout", "curve", "layout_height"}:
+                if obj.kind != "compound" or not {"text", "family", "height", "spacing"} <= set(obj.lettering) or set(obj.lettering) - {"text", "family", "height", "spacing", "layout", "curve", "layout_height", "baseline"}:
                     raise ValueError("Unsupported lettering properties.")
                 if not isinstance(obj.lettering["text"], str) or not 1 <= len(obj.lettering["text"]) <= 80 or not isinstance(obj.lettering["family"], str) or len(obj.lettering["family"]) > 200:
                     raise ValueError("Invalid lettering text or font.")
                 number(obj.lettering["height"], 1, 100)
                 number(obj.lettering["spacing"], 50, 200)
-                if obj.lettering.get("layout", "straight") not in ("straight", "curved", "monogram"):
+                if obj.lettering.get("layout", "straight") not in ("straight", "curved", "monogram", "path"):
                     raise ValueError("Unsupported lettering layout.")
+                if obj.lettering.get('layout')=='path':
+                    baseline=obj.lettering.get('baseline')
+                    if not isinstance(baseline,list) or not 2<=len(baseline)<=2000:raise ValueError('Path lettering requires a stored baseline.')
+                    for point in baseline:
+                        if not isinstance(point,list) or len(point)!=2:raise ValueError('Invalid lettering baseline point.')
+                        for value in point:number(value,-10000,10000)
+                    if any(a==b for a,b in zip(baseline,baseline[1:])):raise ValueError('Lettering baseline has a zero-length segment.')
+                elif 'baseline' in obj.lettering:raise ValueError('Only path lettering can store a baseline.')
                 number(obj.lettering.get("curve", 60), -180, 180)
                 number(obj.lettering.get("layout_height", obj.lettering["height"]), .1, 500)
             for key, low, high in [("x", -1000, 1000), ("y", -1000, 1000), ("width", .1, 500), ("height", .1, 500), ("rotation", -360, 360), ("angle", -360, 360), ("spacing", .2, 5), ("stitch_length", .5, 6)]:
                 number(getattr(obj, key), low, high)
             if type(obj.visible) is not bool or type(obj.underlay) is not bool or type(obj.color_break) is not bool:
                 raise ValueError("Invalid visibility or underlay setting.")
-            for flag in (obj.tie_in, obj.tie_off, obj.trim_after, obj.connect_fill, obj.flip_x, obj.flip_y, obj.stop_after, obj.density_gradient, obj.gradient_reverse, obj.pattern_flip_x, obj.pattern_flip_y):
+            for flag in (obj.tie_in, obj.tie_off, obj.trim_after, obj.connect_fill, obj.route_fill, obj.flip_x, obj.flip_y, obj.stop_after, obj.density_gradient, obj.gradient_reverse, obj.pattern_flip_x, obj.pattern_flip_y):
                 if type(flag) is not bool:
                     raise ValueError("Invalid tie or trim setting.")
             number(obj.satin_max, .5, 12)
@@ -190,6 +200,7 @@ class Project:
             number(obj.underlay_inset, 0, 3)
             number(obj.underlay_spacing, .5, 10)
             number(obj.minimum_stitch, 0, 1)
+            number(obj.jump_trim, 0, 50)
             number(obj.gradient_end_spacing, .2, 5)
             for value in (obj.motif_width,obj.motif_height,obj.motif_spacing,obj.motif_row_spacing):
                 number(value,.5,30)

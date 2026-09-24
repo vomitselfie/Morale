@@ -21,6 +21,8 @@ class Canvas(StitchCanvasMixin, QWidget):
     measured = Signal(float, float, float)
     node_edited = Signal(str, object)
     stitch_moved = Signal(str, int, float, float)
+    stitches_moved = Signal(str, object, float, float)
+    stitches_deleted = Signal(str, object)
 
     def __init__(self):
         super().__init__()
@@ -35,11 +37,14 @@ class Canvas(StitchCanvasMixin, QWidget):
         self.marquee_start = None
         self.marquee_base = set()
         self.snap_grid = False
+        self.snap_objects = False
+        self.snap_bounds_cache = {}
         self.grid_spacing = None
         self.mode = "select"
         self.scale = 5.0
         self.pan = QPointF()
         self.press = None
+        self.snap_guides = (None,None)
         self.drag = QPointF()
         self.panning = False
         self.vertices = []
@@ -55,6 +60,8 @@ class Canvas(StitchCanvasMixin, QWidget):
         self.node_drag = None
         self.stitch_drag = None
         self.stitch_selection = None
+        self.stitch_multi = None
+        self.stitch_marquee = None
         self.handle_drag_mode = "free"
         self.show_travel = False
         self.show_controls = False
@@ -62,6 +69,9 @@ class Canvas(StitchCanvasMixin, QWidget):
         self.timeline = Timeline([])
 
     def set_design(self, project, blocks):
+        self.snap_bounds_cache = {}
+        self.snap_guides = (None,None)
+        self.stitch_marquee = None
         self.node_drag = None
         self.stitch_drag = None
         key = project.reference.get("png")
@@ -89,8 +99,10 @@ class Canvas(StitchCanvasMixin, QWidget):
             self.update()
 
     def set_mode(self, mode):
+        self.stitch_marquee = None
         self.node_drag = None
         self.stitch_drag = None
+        self.snap_guides = (None,None)
         self.drag = QPointF()
         self.mode = mode
         self.vertices = []
@@ -123,6 +135,18 @@ class Canvas(StitchCanvasMixin, QWidget):
             if anchor:
                 center = QPointF(anchor.x, anchor.y)
                 delta = self.snapped(center + delta) - center
+        self.snap_guides=(None,None)
+        if self.snap_objects and self.project:
+            from .object_snapping import snap_bounds,object_bounds
+            selection=set(self.selected_ids) or {self.selected_id}
+            moving=[];targets=[]
+            for obj in self.project.objects:
+                if not obj.visible or self.inspection_ids is not None and obj.id not in self.inspection_ids:continue
+                if obj.id not in self.snap_bounds_cache:self.snap_bounds_cache[obj.id]=object_bounds(obj)
+                (moving if obj.id in selection else targets).append(self.snap_bounds_cache[obj.id])
+            candidate,self.snap_guides=snap_bounds(moving,targets,point-self.press,8/self.scale)
+            if self.snap_guides[0] is not None:delta.setX(candidate.x())
+            if self.snap_guides[1] is not None:delta.setY(candidate.y())
         return delta
 
     @staticmethod
@@ -289,6 +313,8 @@ class Canvas(StitchCanvasMixin, QWidget):
         p.setPen(QPen(QColor("#397359"), 1.5 / self.scale, Qt.PenStyle.DashLine))
         if self.marquee_start is not None:
             p.drawRect(QRectF(self.marquee_start, self.cursor_point).normalized())
+        if self.stitch_marquee is not None:
+            p.drawRect(QRectF(self.stitch_marquee[1],self.cursor_point).normalized())
         if self.press is not None and self.mode in {"ellipse", "rectangle", "leaf"}:
             rect = QRectF(self.press, self.cursor_point).normalized()
             if self.mode == "rectangle":
@@ -309,6 +335,12 @@ class Canvas(StitchCanvasMixin, QWidget):
             self.paint_nodes(p)
         if self.mode == "stitch_nodes" and self.playhead is None:
             self.paint_stitch_points(p)
+        if self.mode=='select' and self.press is not None and self.snap_objects:
+            p.setPen(QPen(QColor('#1765df'),1/self.scale,Qt.PenStyle.DashLine))
+            top_left=self.world(QPointF(0,0));bottom_right=self.world(QPointF(self.width(),self.height()))
+            x,y=self.snap_guides
+            if x is not None:p.drawLine(QPointF(x,top_left.y()),QPointF(x,bottom_right.y()))
+            if y is not None:p.drawLine(QPointF(top_left.x(),y),QPointF(bottom_right.x(),y))
         p.resetTransform()
         if self.measurement:
             start, end = self.measurement
@@ -378,6 +410,8 @@ class Canvas(StitchCanvasMixin, QWidget):
                     painter.restore()
 
     def mousePressEvent(self, event):
+        self.snap_bounds_cache = {}
+        self.snap_guides = (None,None)
         self.setFocus()
         if event.button() == Qt.MouseButton.MiddleButton:
             self.panning = True
@@ -388,7 +422,14 @@ class Canvas(StitchCanvasMixin, QWidget):
         point = self.drawing_point(event.position())
         self.cursor_point = point
         if self.mode == "stitch_nodes":
-            self.pick_stitch(point)
+            modifiers=event.modifiers()
+            subtract=bool(modifiers & Qt.KeyboardModifier.AltModifier)
+            if subtract or not self.pick_stitch(point,modifiers):
+                block=self.stitch_block()
+                if block is not None:
+                    base=self.selected_stitch_indices() if modifiers & (Qt.KeyboardModifier.ControlModifier|Qt.KeyboardModifier.ShiftModifier|Qt.KeyboardModifier.AltModifier) else set()
+                    self.stitch_marquee=(block.object_id,point,base,subtract)
+                    self.press=None;self.stitch_drag=None
         elif self.mode == "nodes":
             obj = self.node_object()
             if obj:
@@ -460,6 +501,18 @@ class Canvas(StitchCanvasMixin, QWidget):
             return
         if event.button() != Qt.MouseButton.LeftButton:
             return
+        if self.stitch_marquee is not None:
+            object_id,start,base,subtract=self.stitch_marquee;self.stitch_marquee=None
+            block=self.stitch_block()
+            if self.playhead is None and block is not None and block.object_id==object_id:
+                rect=QRectF(start,self.world(event.position())).normalized()
+                hits={i for i,s in enumerate(block.stitches) if s.command in {'stitch','jump'} and rect.contains(QPointF(s.x,s.y))}
+                indices=base-hits if subtract else base|hits
+                self.stitch_multi=(object_id,indices)
+                self.stitch_selection=(object_id,min(indices)) if indices else None
+                if indices:self.announce_stitch()
+                else:self.message.emit('No needle positions selected.')
+            self.press=None;self.update();return
         if self.stitch_drag:
             object_id,index,_=self.stitch_drag
             end=self.world(event.position())
@@ -468,7 +521,7 @@ class Canvas(StitchCanvasMixin, QWidget):
             self.press=None
             if changed:
                 target=self.snapped(end)
-                self.stitch_moved.emit(object_id,index,target.x(),target.y())
+                self.move_stitch_selection(object_id,index,target)
             self.update()
             return
         if self.node_drag:
@@ -509,6 +562,7 @@ class Canvas(StitchCanvasMixin, QWidget):
             elif self.mode in {"ellipse", "rectangle", "leaf"} and abs(end.x() - self.press.x()) >= 1 and abs(end.y() - self.press.y()) >= 1:
                 self.drawn.emit(self.mode, [(self.press.x(), self.press.y()), (end.x(), end.y())])
         self.press = None
+        self.snap_guides = (None,None)
         self.drag = QPointF()
         self.update()
 
@@ -531,11 +585,13 @@ class Canvas(StitchCanvasMixin, QWidget):
         elif event.key() in {Qt.Key.Key_Return, Qt.Key.Key_Enter}:
             self.finish_path()
         elif event.key() == Qt.Key.Key_Escape:
+            self.stitch_marquee = None
             self.node_drag = None
             self.stitch_drag = None
             self.vertices = []
             self.press = None
             self.marquee_start = None
+            self.snap_guides = (None,None)
             self.drag = QPointF()
             self.measurement = None
             self.update()

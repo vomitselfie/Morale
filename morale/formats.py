@@ -44,12 +44,36 @@ def import_machine(path):
     if path.stat().st_size > MAX_IMPORT_BYTES:
         raise ValueError("Machine files are limited to 20 MB.")
     try:
-        pattern = emb.read(str(path))
+        if extension=='.vp3':
+            from .vp3_positions import read_vp3
+            pattern=read_vp3(path)
+        else:pattern = emb.read(str(path),settings={'trim_distance':None,'trims':False,'clipping':False}) if extension=='.jef' else emb.read(str(path))
+        if extension=='.jef' and pattern is not None:decode_jef_trims(pattern)
     except Exception as exc:
         raise ValueError(f"The {extension.upper()} reader could not decode this file: {exc}") from exc
     if pattern is None:
         raise ValueError("The file could not be decoded.")
     return from_pattern(pattern, path.stem, extension)
+
+
+def decode_jef_trims(pattern):
+    """Recognize the writer's three stationary-jump trim convention exactly."""
+    result=[];previous=(0,0);index=0
+    while index<len(pattern.stitches):
+        stitch=pattern.stitches[index];command=stitch[2]&emb.COMMAND_MASK
+        if command==emb.JUMP and (stitch[0],stitch[1])==previous:
+            end=index
+            while end<len(pattern.stitches):
+                row=pattern.stitches[end]
+                if row[2]&emb.COMMAND_MASK!=emb.JUMP or (row[0],row[1])!=previous:break
+                end+=1
+            count=end-index
+            result.extend([[*previous,emb.TRIM] for _ in range(count//3)])
+            result.extend(pattern.stitches[end-count%3:end]);index=end;continue
+        result.append(stitch)
+        if command in {emb.STITCH,emb.JUMP}:previous=(stitch[0],stitch[1])
+        index+=1
+    pattern.stitches=result
 
 
 def from_pattern(pattern, name="Imported design", source_format=""):
@@ -59,6 +83,7 @@ def from_pattern(pattern, name="Imported design", source_format=""):
         raise ValueError("File exceeds the 250,000-command import limit.")
     inverse = {value: key for key, value in COMMANDS.items()}
     notes = ["Imported stitches retain their stitch count when resized; density is not regenerated."]
+    if source_format=='.jef':notes.append('JEF runs of three stationary jumps are interpreted as trims. Ordinary travel distance does not imply a trim.')
     project = Project(name[:200])
     thread_index = 0
     current = []
@@ -185,6 +210,12 @@ def export_machine(project, path, blocks=None, *, pes_version=6):
     if path.suffix.lower() not in EXPORT_FORMATS:
         raise ValueError("Choose a supported machine file: " + ", ".join(sorted(EXPORT_FORMATS)))
     pattern = to_pattern(project, blocks)
+    from .export_spans import subdivide_sewn_spans
+    # Reserve one encoder unit for endpoint rounding. Subdivide sewn motion
+    # before the upstream encoder can substitute jumps for oversized spans.
+    maximum=FORMAT_REGISTRY[path.suffix.lower()]['writer'].MAX_STITCH_DISTANCE-1
+    source_stitches=sum(row[2] & emb.COMMAND_MASK==emb.STITCH for row in pattern.stitches)
+    pattern,added_stitches=subdivide_sewn_spans(pattern,maximum)
     # Several binary headers use a fixed 16-byte name field. The upstream TBF
     # and DST writers pad but do not truncate; longer UTF-8 names shift fields.
     if path.suffix.lower() in {".dst", ".tbf"}:
@@ -201,15 +232,37 @@ def export_machine(project, path, blocks=None, *, pes_version=6):
     try:
         with tempfile.NamedTemporaryFile(dir=path.parent, suffix=path.suffix.lower(), delete=False) as f:
             temporary = Path(f.name)
-        emb.write(pattern, str(temporary), {"version": pes_version} if path.suffix.lower() == ".pes" else None)
+        settings={'full_jump':False}
+        if path.suffix.lower()=='.vp3':settings['round']=True
+        if path.suffix.lower()=='.pes':settings['version']=pes_version
+        if path.suffix.lower()=='.jef':settings.update(trims=True,trim_at=3)
+        # Native blocks already contain explicit travel to their sewing start.
+        # A writer's full-jump default would move again to the first stitch end,
+        # silently removing that sewn span.
+        if path.suffix.lower() in {'.pes','.pec','.vp3'}:
+            from .writer_text import write
+            write(pattern,temporary,path.suffix.lower(),settings)
+        else:emb.write(pattern, str(temporary),settings)
         os.replace(temporary, path)
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
 
+    return {'format':path.suffix.lower(),'source_stitches':source_stitches,
+            'prepared_stitches':source_stitches+added_stitches,'subdivision_added_stitches':added_stitches,
+            'maximum_prepared_span_mm':maximum/10}
+
+
+def export_summary(result):
+    return (f"Stitches: {result['source_stitches']:,} in the source, {result['prepared_stitches']:,} prepared for {result['format'][1:].upper()}. "
+            f"Added {result['subdivision_added_stitches']:,} needle positions along long sewn spans. "
+            'The file writer may add further stitches or control commands.')
+
 
 def export_notes(extension, pes_version=6):
     notes = ["Format writers may add travel, trims, or zero-length stitches. Review the exported design in the target machine's preview."]
+    notes.append('Sewn spans exceeding the format limit are subdivided along their original path; this adds needle positions in the exported file.')
+    if extension=='.jef':notes.append('Explicit trims are encoded as three stationary jumps. Trim execution depends on the Janome machine and its settings.')
     if extension in {".dst", ".exp", ".u01"}:
         notes.append("This file does not retain RGB thread colors; export a CSV thread chart.")
     if extension in {".pec", ".jef"} or extension == ".pes" and pes_version == 1:
@@ -217,6 +270,7 @@ def export_notes(extension, pes_version=6):
     if extension in {".dst", ".exp", ".xxx", ".vp3"}:
         notes.append("Operator stops are represented as color changes. Reuse the current thread at those pauses.")
     if extension in {".pes", ".pec"}:
+        notes.append('The PEC machine label is limited to eight ASCII characters; PES v6 extended names and thread text use byte-counted UTF-8 fields (255 bytes per field).')
         notes.append("Same-color thread changes may be decoded as operator stops by PES/PEC readers.")
         notes.append("PES/PEC encoding may add sewn points at jump landings, changing the decoded stitch count and sewn bounds.")
     if extension == ".vp3":
