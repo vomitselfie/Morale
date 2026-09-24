@@ -1,0 +1,149 @@
+{
+  "design": "Branch join sew-out",
+  "field_mm": [
+    100,
+    100
+  ],
+  "sewn_bounds_mm": [
+    -40.0,
+    -40.01,
+    40.86,
+    42.15
+  ],
+  "stitches": 2921,
+  "cells": [
+    {
+      "cell": "A1",
+      "shape": "Y",
+      "join_overlap_mm": 0,
+      "pieces": 2,
+      "joins": 1,
+      "overlapped_joins": 0,
+      "stitch_types": [
+        "satin",
+        "satin"
+      ],
+      "check": "One arm meets a satin that bends through the junction. Look for a gap or a hump at the cut."
+    },
+    {
+      "cell": "A2",
+      "shape": "Y",
+      "join_overlap_mm": 0.3,
+      "pieces": 2,
+      "joins": 1,
+      "overlapped_joins": 1,
+      "stitch_types": [
+        "satin",
+        "satin"
+      ],
+      "check": "One arm meets a satin that bends through the junction. Look for a gap or a hump at the cut."
+    },
+    {
+      "cell": "A3",
+      "shape": "Y",
+      "join_overlap_mm": 0.6,
+      "pieces": 2,
+      "joins": 1,
+      "overlapped_joins": 1,
+      "stitch_types": [
+        "satin",
+        "satin"
+      ],
+      "check": "One arm meets a satin that bends through the junction. Look for a gap or a hump at the cut."
+    },
+    {
+      "cell": "B1",
+      "shape": "K",
+      "join_overlap_mm": 0,
+      "pieces": 4,
+      "joins": 3,
+      "overlapped_joins": 0,
+      "stitch_types": [
+        "satin",
+        "satin",
+        "satin",
+        "satin"
+      ],
+      "check": "Two arms join the upright. Check the crotches for gaps and the bend in the upright for fanning."
+    },
+    {
+      "cell": "B2",
+      "shape": "K",
+      "join_overlap_mm": 0.3,
+      "pieces": 4,
+      "joins": 3,
+      "overlapped_joins": 3,
+      "stitch_types": [
+        "satin",
+        "satin",
+        "satin",
+        "satin"
+      ],
+      "check": "Two arms join the upright. Check the crotches for gaps and the bend in the upright for fanning."
+    },
+    {
+      "cell": "B3",
+      "shape": "Star",
+      "join_overlap_mm": 0.3,
+      "pieces": 4,
+      "joins": 3,
+      "overlapped_joins": 3,
+      "stitch_types": [
+        "satin",
+        "satin",
+        "satin",
+        "satin"
+      ],
+      "check": "Arms join a central piece. Check the hub for bunching where several columns meet."
+    },
+    {
+      "cell": "C1",
+      "shape": "T",
+      "join_overlap_mm": 0.3,
+      "pieces": 2,
+      "joins": 1,
+      "overlapped_joins": 1,
+      "stitch_types": [
+        "satin",
+        "satin"
+      ],
+      "check": "Stem meets the bar along part of its edge (T-junction). Check for a gap under the bar."
+    },
+    {
+      "cell": "C2",
+      "shape": "Leaf",
+      "join_overlap_mm": 0.3,
+      "pieces": 2,
+      "joins": 1,
+      "overlapped_joins": 1,
+      "stitch_types": [
+        "satin",
+        "fill"
+      ],
+      "check": "Satin stem joins a fill body. Check the stem does not pull away from the fill edge."
+    },
+    {
+      "cell": "C3",
+      "shape": "Star",
+      "join_overlap_mm": 0,
+      "pieces": 4,
+      "joins": 3,
+      "overlapped_joins": 0,
+      "stitch_types": [
+        "satin",
+        "satin",
+        "satin",
+        "satin"
+      ],
+      "check": "Arms join a central piece. Check the hub for bunching where several columns meet."
+    }
+  ],
+  "exports_bytes": {
+    "branch-sewout.pes": 21254,
+    "branch-sewout-v1.pes": 20835,
+    "branch-sewout.exp": 6382,
+    "branch-sewout.dst": 9833
+  },
+  "physical_sewouts": false,
+  "machine_validated": false
+}

@@ -588,6 +588,20 @@ Create the output folder first. The command exits nonzero if any file fails or i
 skipped. Use `--pes-version 1` with `--format pes` for older PES readers; v6 is the
 default. File format and physical machine compatibility limits still apply.
 
+## Test sew-outs
+
+[`examples/branch-sewout/`](examples/branch-sewout/README.txt) is a ready-to-sew,
+single-colour 100 × 100 mm test of branch splitting and join overlap. It has PES
+(v6 and v1) for Brother, EXP for Bernina, DST, an actual-size placement PDF, and
+a README saying what to look for in each of its nine cells. Regenerate it with:
+
+```sh
+python -m morale.sewout_pack --output NEW_FOLDER
+```
+
+Sew-out results (machine, hoop, fabric, stabilizer, photos) are the evidence
+still missing for every stitch-quality claim in this README.
+
 ## Embroidery limitations
 
 Stitch generation is experimental and has not been validated by physical sew-outs.

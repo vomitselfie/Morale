@@ -234,8 +234,38 @@ def _chord_partition(obj):
         if best is None:break
         _,index,parts,chord=best
         pieces[index:index+1]=parts;cuts.append(chord)
+    # Fold junction wedges back into a neighbor: very short satins stitch poorly
+    # and leave joins too small to overlap.
+    merged=True
+    while merged and len(pieces)>2:
+        merged=False
+        for index,piece in sorted(enumerate(pieces),key=lambda item:abs(_ring_area(item[1]))):
+            if abs(_ring_area(piece))>=4:break
+            for other,neighbor in enumerate(pieces):
+                if other==index:continue
+                for p,q in cuts:
+                    joined=_merge_rings(piece,neighbor,p,q)
+                    if joined is not None and column(joined):
+                        pieces[other]=joined;del pieces[index];cuts.remove((p,q));merged=True;break
+                if merged:break
+            if merged:break
     if not cuts or not 2<=len(pieces)<=24:return None
     return [_piece(obj,piece) for piece in pieces]
+
+
+def _merge_rings(first,second,p,q):
+    """Join two pieces along their shared cut p-q, or None if they do not share it."""
+    def at(ring,point):return next((i for i,r in enumerate(ring) if math.dist(r,point)<1e-7),None)
+    a,b,c,d=at(first,p),at(first,q),at(second,p),at(second,q)
+    if None in (a,b,c,d):return None
+    n,m=len(first),len(second)
+    # The cut runs p->q in one ring and q->p in the other.
+    if (a+1)%n==b and (d+1)%m==c:
+        ring=[first[(b+k)%n] for k in range((a-b)%n+1)]+[second[(c+k)%m] for k in range(1,(d-c)%m)]
+    elif (b+1)%n==a and (c+1)%m==d:
+        ring=[first[(a+k)%n] for k in range((b-a)%n+1)]+[second[(d+k)%m] for k in range(1,(c-d)%m)]
+    else:return None
+    return ring if len(ring)>=3 else None
 
 
 def _score(obj,pieces):

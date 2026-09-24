@@ -12,6 +12,10 @@ test on scrap fabric before sewing a finished piece.
 - **Branch join overlap** (default 0.3 mm) extends one piece across each branch
   cut, inside the artwork, so satin columns overlap instead of just touching.
   Saved in presets; older presets keep exact joins.
+- Tiny junction wedges left by branch cuts merge into a neighbouring satin.
+- **Branch-join sew-out pack** (`examples/branch-sewout/`, or
+  `python -m morale.sewout_pack --output DIR`): nine test cells comparing exact,
+  0.3 mm and 0.6 mm joins, with PES, EXP, DST and a placement PDF.
 - Faster area measurement across conversion (full test suite about 27% faster).
 
 ## 0.2.0 — 2026-09-24

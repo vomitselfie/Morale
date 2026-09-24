@@ -1244,3 +1244,14 @@ the added area is bounded by the overlap times the cut length. T-junction partia
 contacts are detected, and an overlapped tee exported to DST stays inside its
 silhouette. Full Linux offscreen suite: 1,837 passed. Physical join behaviour
 under pull and tie treatment at joins remain unvalidated.
+
+### Branch-join sew-out pack
+
+`python -m morale.sewout_pack` creates a single-colour 100 × 100 mm design with
+Y (exact, 0.3 mm, 0.6 mm joins), K and star (exact and 0.3 mm), T-junction and
+leaf-with-stem cells, exported to PES v6/v1, EXP and DST with a placement PDF,
+thread chart and instructions. A retained copy is in `examples/branch-sewout/`.
+Tests check that every cell splits, that every join is overlapped whenever overlap is enabled, that the design
+fits the field and that all four files reopen with their stitches. Junction wedges
+under 4 mm² now merge into a neighbouring satin. This is a test pack, not a sew-out
+result: Brother/Bernina runs remain pending.
