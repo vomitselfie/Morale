@@ -252,8 +252,14 @@ class TraceDialog(QDialog):
         self.aligned_images={}
         self.inspect_button=QPushButton('Inspect and overlay…');self.inspect_button.setEnabled(False)
         self.inspect_button.clicked.connect(self.inspect_artwork);layout.addWidget(self.inspect_button)
-        self.density_image=QImage();self.thread_density_image=QImage()
-        self.density_button=QPushButton('Density review…');self.density_button.setEnabled(False)
+        self.density_image=QImage();self.thread_density_image=QImage();self.layers_image=QImage()
+        from .coverage_review import FABRICS
+        fabric_row=QHBoxLayout();fabric_label=QLabel('Fabric for guidance');fabric_row.addWidget(fabric_label)
+        self.fabric=QComboBox();self.fabric.setAccessibleName('Fabric for density and detail guidance')
+        for key,limits in FABRICS.items():self.fabric.addItem(limits['label'],key)
+        self.fabric.setToolTip('Choose the fabric to review stacked layers, thread density and small details against. Guidance updates without regenerating; thresholds are starting points, not calibrated limits.')
+        fabric_label.setBuddy(self.fabric);fabric_row.addWidget(self.fabric,1);layout.addLayout(fabric_row)
+        self.density_button=QPushButton('Density and coverage review…');self.density_button.setEnabled(False)
         self.density_button.clicked.connect(self.show_density);layout.addWidget(self.density_button)
         self.review_snapshot=None
         self.review_button=QPushButton('Save conversion review PDF…');self.review_button.setEnabled(False)
@@ -377,7 +383,7 @@ class TraceDialog(QDialog):
         self.inspection_geometry={}
         self.aligned_images={};self.inspect_button.setEnabled(False)
         self.review_snapshot=None;self.review_button.setEnabled(False)
-        self.density_image=QImage();self.thread_density_image=QImage();self.density_button.setEnabled(False)
+        self.density_image=QImage();self.thread_density_image=QImage();self.layers_image=QImage();self.density_button.setEnabled(False)
         self.quality=None;self.quality_button.setEnabled(False)
         self.runner.cancel()
         self.project=None
@@ -432,6 +438,7 @@ class TraceDialog(QDialog):
             self.quality=stats.get('quality')
             self.density_image=QImage.fromData(base64.b64decode(info.get('density_png','')))
             self.thread_density_image=QImage.fromData(base64.b64decode(info.get('thread_density_png','')))
+            self.layers_image=QImage.fromData(base64.b64decode(info.get('layers_png','')))
             self.density_button.setEnabled(not self.density_image.isNull())
             self.quality_button.setEnabled(self.quality is not None)
             decisions=stats.get('stitch_decisions',[])
@@ -510,7 +517,7 @@ class TraceDialog(QDialog):
         self.inspection_geometry={}
         self.aligned_images={};self.inspect_button.setEnabled(False)
         self.review_snapshot=None;self.review_button.setEnabled(False)
-        self.density_image=QImage();self.thread_density_image=QImage();self.density_button.setEnabled(False)
+        self.density_image=QImage();self.thread_density_image=QImage();self.layers_image=QImage();self.density_button.setEnabled(False)
         self.quality=None;self.quality_button.setEnabled(False)
         self.project=None
         self.svg=''; self.save_svg_button.setEnabled(False)
@@ -523,7 +530,7 @@ class TraceDialog(QDialog):
         if not path:return
         try:
             from .conversion_report import save_conversion_review
-            save_conversion_review(path,Path(self.path).name,*self.review_snapshot)
+            save_conversion_review(path,Path(self.path).name,*self.review_snapshot,fabric=self.fabric.currentData())
             self.status.setText(f'Saved conversion review: {path}')
         except (OSError,ValueError,KeyError) as exc:QMessageBox.warning(self,'Review not saved',str(exc))
 
@@ -537,11 +544,22 @@ class TraceDialog(QDialog):
         dialog=QDialog(self);dialog.setWindowTitle('Artwork density review')
         layout=QVBoxLayout(dialog);mode=QComboBox();mode.setAccessibleName('Density measurement')
         stack=QStackedWidget()
-        for title,image in [('Needle penetrations',self.density_image),('Sewn thread length',self.thread_density_image)]:
+        for title,image in [('Needle penetrations',self.density_image),('Sewn thread length',self.thread_density_image),('Coverage layers',self.layers_image)]:
             if image.isNull():continue
             mode.addItem(title);label=QLabel();label.setPixmap(QPixmap.fromImage(image));stack.addWidget(label)
         mode.currentIndexChanged.connect(stack.setCurrentIndex)
         layout.addWidget(mode);layout.addWidget(stack)
+        if self.quality is not None and self.quality.get('layers'):
+            from .coverage_review import fabric_guidance
+            fabric=QComboBox();fabric.setAccessibleName('Fabric for guidance')
+            for index in range(self.fabric.count()):fabric.addItem(self.fabric.itemText(index),self.fabric.itemData(index))
+            fabric.setCurrentIndex(self.fabric.currentIndex())
+            guidance=QPlainTextEdit();guidance.setReadOnly(True);guidance.setAccessibleName('Fabric guidance');guidance.setMaximumHeight(170)
+            def update(_=None):
+                self.fabric.setCurrentIndex(fabric.currentIndex())
+                guidance.setPlainText(fabric_guidance(self.quality,fabric.currentData())[1])
+            fabric.currentIndexChanged.connect(update);update()
+            layout.addWidget(fabric);layout.addWidget(guidance)
         close=QDialogButtonBox(QDialogButtonBox.StandardButton.Close);close.rejected.connect(dialog.reject);layout.addWidget(close)
         dialog.exec()
 
@@ -550,7 +568,7 @@ class TraceDialog(QDialog):
         from .trace_quality import quality_text
         dialog=QDialog(self);dialog.setWindowTitle('Conversion checks')
         layout=QVBoxLayout(dialog)
-        text=QPlainTextEdit();text.setReadOnly(True);text.setPlainText(quality_text(self.quality))
+        text=QPlainTextEdit();text.setReadOnly(True);text.setPlainText(quality_text({**self.quality,'fabric':self.fabric.currentData()}))
         text.setAccessibleName('Conversion measurements by sewing order');layout.addWidget(text)
         buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(dialog.reject);layout.addWidget(buttons)

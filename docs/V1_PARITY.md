@@ -1255,3 +1255,14 @@ Tests check that every cell splits, that every join is overlapped whenever overl
 fits the field and that all four files reopen with their stitches. Junction wedges
 under 4 mm² now merge into a neighbouring satin. This is a test pack, not a sew-out
 result: Brother/Bernina runs remain pending.
+
+### Coverage layers and fabric guidance
+
+Conversion previews now measure distinct-object coverage layers from rasterized
+sewn footprints and report overlapping object pairs with shared area, shown as a
+fixed-scale map in the density review and review PDF. Five fabric profiles apply
+starting-point thresholds for stacked layers, sewn-thread density, satin width and
+fill area to stored measurements. Tests cover separate, overlapping, three-way and
+touching objects, the empty case, guidance findings and a clean single-layer
+design, and the worker, dialog and PDF integration. Full Linux offscreen suite:
+1,851 passed. The thresholds are uncalibrated until fabric sew-outs exist.

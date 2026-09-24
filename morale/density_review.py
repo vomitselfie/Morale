@@ -46,7 +46,9 @@ def measure_thread_density(blocks,budget=2_000_000):
                             lengths[key]+=distance*(high-low);objects[key].add(block.object_id);used+=1
             if stitch.command in {'stitch','jump'}:previous=point
     hottest=sorted(lengths,key=lambda k:(-lengths[k],k))[:20]
-    return {'cell_size_mm':1,'origin_mm':[0,0],'complete':complete,'total_sewn_mm':total,
+    # 0.5 mm/mm² bins let fabric guidance apply thresholds without the full map.
+    bins=Counter(math.floor(value*2)/2 for value in lengths.values())
+    return {'histogram':sorted(bins.items()),'cell_size_mm':1,'origin_mm':[0,0],'complete':complete,'total_sewn_mm':total,
             'mapped_sewn_mm':sum(lengths.values()),'peak_mm_per_mm2':max(lengths.values(),default=0.),
             'occupied_cells':len(lengths),'multi_object_cells':sum(len(ids)>1 for ids in objects.values()),
             'hottest_cells':[{'x_mm':x,'y_mm':y,'sewn_mm':lengths[x,y],'objects':len(objects[x,y])} for x,y in hottest]},lengths

@@ -16,6 +16,12 @@ test on scrap fabric before sewing a finished piece.
 - **Branch-join sew-out pack** (`examples/branch-sewout/`, or
   `python -m morale.sewout_pack --output DIR`): nine test cells comparing exact,
   0.3 mm and 0.6 mm joins, with PES, EXP, DST and a placement PDF.
+- **Coverage layers** view in the density review: a fixed-scale map of how many
+  objects sew over each point, with overlapping object pairs and their shared area
+  in conversion checks and the review PDF.
+- **Fabric for guidance** (medium woven, lightweight, knit, heavy, pile) flags
+  stacked layers, dense cells, narrow satins and small fills against
+  starting-point thresholds, without regenerating.
 - Faster area measurement across conversion (full test suite about 27% faster).
 
 ## 0.2.0 — 2026-09-24

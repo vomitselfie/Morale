@@ -267,6 +267,12 @@ def worker_main(args):
         thread_data=QByteArray();thread_buffer=QBuffer(thread_data);thread_buffer.open(QIODevice.OpenModeFlag.WriteOnly)
         if not thread_image.save(thread_buffer,'PNG'):raise ValueError('Could not render the thread density review.')
         thread_density_png=base64.b64encode(bytes(thread_data)).decode('ascii')
+        from .coverage_review import measure_layers,render_layers,detail_measurements
+        stats['quality']['layers'],layer_raster=measure_layers(project,blocks)
+        stats['quality']['details']=detail_measurements(project)
+        layers_data=QByteArray();layers_buffer=QBuffer(layers_data);layers_buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+        if not render_layers(stats['quality']['layers'],layer_raster).save(layers_buffer,'PNG'):raise ValueError('Could not render the coverage review.')
+        layers_png=base64.b64encode(bytes(layers_data)).decode('ascii')
         stats['quality']['thread_matches']=stats['thread_matches']
         stats['quality']['background_removal']=stats.get('background_removal')
         stats['quality']['color_profile']=stats['color_profile']
@@ -296,7 +302,7 @@ def worker_main(args):
             (obj.kind=='path' and obj.points[0]==obj.points[-1])}
         create_preview(root/'trace.morale',root,marked_starts)
         info=json.loads((root/'preview.json').read_text())
-        info.update(project=project.dumps(),raster_png=raster_png,density_png=density_png,thread_density_png=thread_density_png,trace_svg=stats.pop('svg',''),trace_stats=stats)
+        info.update(project=project.dumps(),raster_png=raster_png,density_png=density_png,thread_density_png=thread_density_png,layers_png=layers_png,trace_svg=stats.pop('svg',''),trace_stats=stats)
         from .review_panels import aligned_panels
         from PySide6.QtSvg import QSvgRenderer
         renderer=QSvgRenderer(info['trace_svg'].encode('utf-8')) if info['trace_svg'] else None

@@ -195,8 +195,8 @@ Next work, while retaining the broader parity ledger:
    junction patches for wide hubs and ambiguous rounded ends.
 2. Extend perceptual chart matching with palette-wide color planning and display/
    gamut management, and improve region ordering, travel and overlap control.
-3. Extend the initial conversion measurements with local density/overlap maps
-   and fabric-aware guidance for small details.
+3. Calibrate the fabric guidance thresholds with sew-outs, and add per-region
+   density suggestions (for example, recommended spacing changes).
 4. Expand generated artwork and logo quality comparisons before external-file
    collection; validate fabric, thread and machine behavior through later sew-outs.
 5. Develop photographic embroidery separately from flat artwork tracing.
@@ -353,6 +353,28 @@ Traversal is bounded to two million cell pieces. If that budget is exceeded, the
 map and report explicitly say partial, while still reporting the full sewn-path
 length and the mapped subset separately. This estimates planar coverage, not
 thread consumption through fabric, bobbin usage or safe fabric-specific density.
+
+## Coverage layers and fabric guidance
+
+**Density and coverage review…** adds a third view, **Coverage layers**: the number
+of distinct objects sewn over each point, on a fixed scale (one layer, two, three,
+four or more). Each object's footprint is its fill/satin outline plus a 0.4 mm
+band along every sewn segment, so pull compensation, underlay and running paths
+count. Footprints are rasterized at up to 10 pixels per millimetre (at most four
+million pixels) and added together, so an object's own passes count once.
+Touching objects therefore show a thin shared seam; exact joins in the sew-out
+pack measure well under 1 mm² while 0.3 mm branch overlaps measure about 2 mm².
+Conversion checks list the overlapping object pairs with shared area (up to 2,000
+candidate pairs) and the review PDF gains a coverage page.
+
+**Fabric for guidance** applies starting-point thresholds for medium woven,
+lightweight woven, knit, heavy woven or pile fabric to the stored measurements,
+without regenerating: stacked layers, 1 mm² cells above a sewn-thread density
+(one satin layer with underlay measures about 5–6 mm/mm², a 0.45 mm fill about
+2.3), satins narrower than a minimum width and fills below a minimum area. Each
+finding names its location or object. The thresholds are review aids chosen from
+those measurements and common practice, not calibrated limits; sew-outs on the
+named fabrics are needed to tune them.
 
 ## Shareable conversion review
 

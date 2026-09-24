@@ -104,6 +104,12 @@ def quality_text(report):
         lines.extend([f"Sewn thread density: peak {density['peak_mm_per_mm2']:.2f} mm/mm²; mapped {density['mapped_sewn_mm']:.2f} of {density['total_sewn_mm']:.2f} mm.",
                       'Complete grid traversal.' if density['complete'] else 'Partial map: geometry budget exceeded.',
                       'Planar sewn length includes ties and underlay, excludes jumps, and does not estimate take-up through fabric or bobbin thread.',''])
+    if report.get('layers'):
+        from .coverage_review import layers_text
+        lines.extend([*layers_text(report['layers']),''])
+    if report.get('fabric'):
+        from .coverage_review import fabric_guidance
+        lines.extend([fabric_guidance(report,report['fabric'])[1],''])
     if report.get('artwork_notes'):
         lines.extend(['Artwork interpretation:',*report['artwork_notes'],''])
     if report.get('overlap'):
