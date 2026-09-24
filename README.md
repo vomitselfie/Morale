@@ -639,6 +639,19 @@ those packaged workflows; it does not establish full parity or physical sewing
 fidelity. To run the same workflow from source, use
 `python -m morale --self-test artifacts/source-self-test`.
 
+To publish a release, update the version in `pyproject.toml` and
+`morale/__init__.py`, add a `## X.Y.Z` section to [CHANGELOG.md](CHANGELOG.md),
+commit, then tag and push over SSH:
+
+```sh
+git tag -a vX.Y.Z -m "Morale X.Y.Z"
+git push origin master vX.Y.Z
+```
+
+The tag triggers `.github/workflows/release.yml`, which tests, builds and
+self-tests Linux, Windows and macOS bundles, then creates a GitHub Release with
+that changelog section, the archives and `SHA256SUMS`.
+
 ## Architecture and contributing
 
 - `morale/model.py`: versioned project schema and editable geometry.

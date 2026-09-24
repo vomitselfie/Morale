@@ -1,6 +1,7 @@
 name: Desktop checks and development bundles
 on:
   push:
+    branches: ['**']
   pull_request:
   workflow_dispatch:
 
