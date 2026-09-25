@@ -259,6 +259,12 @@ class WindowLayoutMixin:
             row.itemAt(i).widget().setToolTip(tip)
             row.itemAt(i).widget().setAccessibleName(tip)
         column.addLayout(row)
+        # Never clip these buttons: widen the panel when larger text needs it.
+        for i in range(row.count()):
+            row.itemAt(i).widget().ensurePolished()
+        needed = row.sizeHint().width() + 36
+        left.setMinimumWidth(max(210, needed))
+        left.setMaximumWidth(max(320, needed))
         column.addSpacing(16)
         column.addWidget(label("Made for the joy of making.", "muted"))
         splitter.addWidget(left)
@@ -329,7 +335,8 @@ class WindowLayoutMixin:
         right.setWidgetResizable(True)
         right.setFrameShape(QFrame.Shape.NoFrame)
         right.setMinimumWidth(250)
-        right.setMaximumWidth(330)
+        # Property labels and values need more room when system text is larger.
+        right.setMaximumWidth(max(330, self.fontMetrics().averageCharWidth() * 44))
         panel = QWidget()
         props = QVBoxLayout(panel)
         props.setContentsMargins(20, 24, 20, 20)

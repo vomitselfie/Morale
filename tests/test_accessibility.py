@@ -140,3 +140,18 @@ def test_arrow_keys_nudge_the_selection_with_undo():
         for _ in range(3):window.undo()
         assert window.project.dumps()==before
     finally:window.saved=window.project.dumps();window.close()
+
+
+@pytest.mark.parametrize('points',[10,16])
+def test_sequence_buttons_are_not_clipped_at_larger_text(points):
+    from PySide6.QtGui import QFont
+    app=QApplication.instance();previous=app.font()
+    font=QFont(previous);font.setPointSizeF(points);app.setFont(font)
+    window=MainWindow()
+    try:
+        window.resize(1400,900);window.show();QApplication.processEvents()
+        for text in ('Copy','Delete'):
+            widget=next(b for b in window.findChildren(QAbstractButton) if b.text()==text)
+            assert widget.width()>=widget.sizeHint().width(),(text,widget.width(),widget.sizeHint().width())
+    finally:
+        window.saved=window.project.dumps();window.close();app.setFont(previous)
