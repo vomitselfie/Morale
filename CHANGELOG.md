@@ -5,6 +5,11 @@ test on scrap fabric before sewing a finished piece.
 
 ## Unreleased
 
+### License
+- Morale is now licensed under the **GNU GPL, version 3 or later**. Anyone may use,
+  share and change it, and shared versions must stay free and open. Version 0.2.0
+  and earlier remain available under the MIT license they were released with.
+
 ### Artwork and image digitizing
 - **Split suitable branching shapes** now cuts at branch crotches along short
   interior chords, so Y, X, star and K forms at any angle become satin columns

@@ -118,7 +118,7 @@ Pre-commit generation checks and some dialog/export workflows remain synchronous
 conversion modules have docstrings describing their responsibilities; about 85
 modules live in `morale/`.
 
-Morale is MIT-licensed. Dependencies retain their own licenses; see
+Morale is licensed under the GNU GPL, version 3 or later (`GPL-3.0-or-later`); contributions are accepted under the same license. Dependencies retain their own licenses; see
 [third-party notices](../THIRD_PARTY_NOTICES.md).
 
 ## Project documents

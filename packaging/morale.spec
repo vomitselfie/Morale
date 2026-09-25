@@ -38,7 +38,7 @@ if sys.platform == "win32":
             StringStruct("FileDescription", "Morale embroidery studio"),
             StringStruct("FileVersion", VERSION),
             StringStruct("InternalName", "Morale"),
-            StringStruct("LegalCopyright", "MIT License"),
+            StringStruct("LegalCopyright", "Copyright (C) 2026 Morale contributors. GPL-3.0-or-later"),
             StringStruct("OriginalFilename", "Morale.exe"),
             StringStruct("ProductName", "Morale"),
             StringStruct("ProductVersion", VERSION)])]),
@@ -72,7 +72,7 @@ if sys.platform == "darwin":
             "CFBundleShortVersionString": VERSION,
             "CFBundleVersion": VERSION,
             "NSHighResolutionCapable": True,
-            "NSHumanReadableCopyright": "MIT License",
+            "NSHumanReadableCopyright": "Copyright © 2026 Morale contributors. GNU GPL v3 or later.",
             "LSApplicationCategoryType": "public.app-category.graphics-design",
             "CFBundleDocumentTypes": [{
                 "CFBundleTypeName": "Morale embroidery project",

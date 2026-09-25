@@ -111,5 +111,8 @@ Building from source, running the tests and publishing releases are covered in
 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Release notes are in
 [CHANGELOG.md](CHANGELOG.md).
 
-Morale is free software under the [MIT license](LICENSE). It uses other open-source
-projects, listed in [third-party notices](THIRD_PARTY_NOTICES.md).
+Morale is free software: you can use, share and change it under the
+[GNU General Public License, version 3 or later](LICENSE). Any copy or changed
+version you share must stay free and open under the same license. Copyright ©
+2026 Morale contributors. Morale uses other open-source projects, listed in
+[third-party notices](THIRD_PARTY_NOTICES.md).

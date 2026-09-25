@@ -4,6 +4,7 @@ from PySide6.QtGui import QAction, QActionGroup, QKeySequence
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QListWidget, QFormLayout,
     QDoubleSpinBox, QComboBox, QCheckBox, QLineEdit, QMessageBox, QSplitter, QSlider,
     QToolBar, QScrollArea, QFrame)
+from . import __version__
 from .canvas import Canvas
 from .model import PALETTE
 from .measurements import factor, dimension
@@ -204,7 +205,7 @@ class WindowLayoutMixin:
         help_menu = self.menuBar().addMenu("&Help")
         help_menu.addAction(self.action("Getting started", self.help))
         help_menu.addAction(self.action("Format compatibility", self.compatibility))
-        help_menu.addAction(self.action("About Morale", lambda: QMessageBox.about(self, "About Morale", "Morale 0.1 · Native embroidery studio\nOpen source · MIT license\n\nBuilt with Qt for Python and pyembroidery.\nAn early foundation for accessible embroidery digitizing.")))
+        help_menu.addAction(self.action("About Morale", lambda: QMessageBox.about(self, "About Morale", f"Morale {__version__} · Free embroidery studio\nCopyright © 2026 Morale contributors\n\nFree software under the GNU General Public License, version 3 or later: you may use, share and change it, and shared versions must stay free.\n\nBuilt with Qt for Python and pyembroidery.")))
 
     def make_ui(self):
         tools = QToolBar("Design tools", self)
