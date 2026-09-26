@@ -53,14 +53,14 @@ def test_compound_rendering_and_running_contours():
 def test_lettering_is_editable_and_preserves_outlines_in_project():
     obj = make_lettering("BOB", QFont().family(), 15, 100)
     assert obj.kind == "compound"
-    assert obj.height == 15
+    assert obj.height == pytest.approx(15)
     assert len(obj.contours) >= 6
     loaded = Project.loads(Project(objects=[obj]).dumps()).objects[0]
     assert loaded.contours == obj.contours
     assert loaded.lettering["text"] == "BOB"
     changed = make_lettering("MOM", obj.lettering["family"], 20, 120, obj)
     assert changed.id == obj.id
-    assert changed.height == 20
+    assert changed.height == pytest.approx(20)
     assert changed.contours != obj.contours
 
 

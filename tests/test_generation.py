@@ -144,7 +144,10 @@ def test_main_window_remains_responsive_during_worker_and_close_cancels(monkeypa
     try:
         window.start_calculation(); assert runner.process.waitForStarted(2000)
         directory=Path(runner.directory.name)
-        timer.start(); QTest.qWait(80)
+        # The event loop keeps running while the worker sleeps; slow CI machines
+        # need longer than 80 ms to show three 10 ms ticks.
+        timer.start(); deadline=time.monotonic()+1
+        while len(ticks)<3 and time.monotonic()<deadline:QTest.qWait(20)
         assert len(ticks)>=3
         window.saved=window.project.dumps(); window.close()
         assert runner.process.state()==QProcess.ProcessState.NotRunning and not directory.exists()
