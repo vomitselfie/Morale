@@ -68,7 +68,9 @@ def test_failed_atomic_save_preserves_existing_file(dialog,tmp_path,monkeypatch)
     assert path.read_text()=='original' and list(tmp_path.iterdir())==[path]
 
 
-@pytest.mark.parametrize('data',['{','[]','x'*32769,json.dumps({'format':'morale-trace-preset','version':True,'settings':{}})])
+# Short ids: long test data in the id becomes a temporary path too long for Windows.
+@pytest.mark.parametrize('data',['{','[]','x'*32769,json.dumps({'format':'morale-trace-preset','version':True,'settings':{}})],
+                         ids=['truncated','array','oversized','boolean-version'])
 def test_corrupt_or_oversized_file_rejected(tmp_path,data):
     path=tmp_path/'bad.json';path.write_text(data)
     with pytest.raises(ValueError):load_preset(path)

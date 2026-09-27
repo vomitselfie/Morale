@@ -32,8 +32,10 @@ def test_per_placement_export_counts_match_native_tiles_and_archive(tmp_path,reg
         assert 'placements.csv' in archive.namelist()
         assert json.loads(archive.read('plan.json'))['tiles'][0]['export_preparation']==manifest['tiles'][0]['export_preparation']
     if shutil.which('pdftotext'):
-        text=subprocess.check_output(['pdftotext',str(root/'placement.pdf'),'-'],text=True)
-        assert 'prepared (+' in text and 'counts include alignment marks' in text
+        text=subprocess.check_output(['pdftotext',str(root/'placement.pdf'),'-'],text=True,encoding='utf-8',errors='replace')
+        # Text extraction can space out letters depending on the platform's font.
+        compact=''.join(text.split())
+        assert 'prepared(+' in compact and 'countsincludealignmentmarks' in compact
 
 
 def test_native_only_bundle_keeps_machine_counts_empty(tmp_path):

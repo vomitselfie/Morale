@@ -29,7 +29,8 @@ def test_edr_retains_order_and_duplicates(tmp_path):
     assert [e.color for e in read_catalog(path)]==['#ff0000','#0000ff','#ff0000']
 
 
-@pytest.mark.parametrize('data',[b'',b'\x01',b'12345',b'0000'*10001])
+# Short ids: long test data in the id becomes a temporary path too long for Windows.
+@pytest.mark.parametrize('data',[b'',b'\x01',b'12345',b'0000'*10001],ids=['empty','one-byte','partial','oversized'])
 def test_invalid_edr_rejected(tmp_path,data):
     path=tmp_path/'bad.edr';path.write_bytes(data)
     with pytest.raises(ValueError):read_catalog(path)
