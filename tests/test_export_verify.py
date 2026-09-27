@@ -21,14 +21,12 @@ def test_reliable_formats_verify(tmp_path, extension):
     assert verification_text(result, path.name).startswith('Export verified')
 
 
-def test_known_vp3_problem_stays_visible(tmp_path):
-    # VP3 loses internal jump positions (docs/VP3_INVESTIGATION.md); verification must show it.
+def test_vp3_verifies_now_that_jumps_keep_their_landings(tmp_path):
     project = demo_project(); blocks = generate(project)
     path = tmp_path / 'design.vp3'
     export_machine(project, path, blocks)
     result = verify_export(blocks, path)
-    assert not result['verified'] and any('not in the design' in p or 'missing' in p for p in result['problems'])
-    assert verification_text(result, path.name).startswith('Export check found differences')
+    assert result['verified'] and result['bounds_delta_mm'] < .1
 
 
 def test_a_damaged_file_is_flagged(tmp_path, monkeypatch):
@@ -47,13 +45,23 @@ def test_a_damaged_file_is_flagged(tmp_path, monkeypatch):
     assert not result['verified'] and any('edge moved' in p for p in result['problems'])
 
 
-@pytest.mark.parametrize('extension,title', [('pes', 'Stitches exported'), ('vp3', 'Check the exported file')])
+@pytest.mark.parametrize('extension,title', [('pes', 'Stitches exported'), ('dst', 'Check the exported file')])
 def test_window_export_reports_verification(tmp_path, monkeypatch, extension, title):
     from morale.app import MainWindow
     shown = []
     monkeypatch.setattr(QMessageBox, 'information', lambda *a: shown.append(('info', a[1], a[2])))
     monkeypatch.setattr(QMessageBox, 'warning', lambda *a: shown.append(('warning', a[1], a[2])))
-    label = {'pes': 'PES', 'vp3': 'VP3'}[extension]
+    label = {'pes': 'PES', 'dst': 'DST'}[extension]
+    if extension == 'dst':
+        # Simulate a writer fault: the reopened file is shifted by 2 mm.
+        import morale.export_verify as module
+        original = module.import_machine
+        def shifted(p):
+            result = original(p)
+            for obj in result.project.objects:
+                obj.x += 2
+            return result
+        monkeypatch.setattr(module, 'import_machine', shifted)
     monkeypatch.setattr(QFileDialog, 'getSaveFileName', lambda *a: (str(tmp_path / f'design.{extension}'), f'{label} (*.{extension})'))
     window = MainWindow()
     try:

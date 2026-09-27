@@ -1,7 +1,7 @@
 """Restore encoded VP3 color-block starts, including positions on either axis.
 
-Layout follows the upstream pyembroidery VP3 reader. Stitch decoding stays with
-that reader; this adapter does not infer jump commands absent from the file.
+Layout follows the upstream pyembroidery VP3 reader. Stitch decoding follows
+vp3_format: short-form records are stitches, long-form records are jumps.
 """
 import io
 from pathlib import Path
@@ -42,5 +42,10 @@ def read_vp3(path):
             x,y=starts[index]
             if (self._previousX,self._previousY)!=(x,y):self.move_abs(x,y)
             super().add_thread(thread)
-    result=PositionedPattern();Vp3Reader.read(io.BytesIO(data),result)
+    # Long-form moves are read as jumps, matching Morale's writer (see vp3_format).
+    from .writer_text import _adapter
+    from .vp3_format import read_colorblock
+    reader=_adapter(Vp3Reader,{})
+    reader.read.__globals__['vp3_read_colorblock']=read_colorblock(reader)
+    result=PositionedPattern();reader.read(io.BytesIO(data),result)
     return result

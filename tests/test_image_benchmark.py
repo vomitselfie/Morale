@@ -10,10 +10,9 @@ def app():return QApplication.instance() or QApplication([])
 def test_complete_generated_corpus_reports_geometry_and_export_fidelity(tmp_path):
     root=tmp_path/'review';report=build_report(root)
     assert report['artwork_checks_passed'] and len(report['cases'])==11
-    # Known VP3 sewn travel remains a failing release gate, not an exemption.
-    assert not report['checks_passed']
+    # Every format, VP3 included since jumps keep their landings, passes the sewn-path gate.
     failures=[(row['name'],ext) for row in report['cases'] for ext,result in row['exports'].items() if not result['sewn_path_check']]
-    assert len(failures)==7 and {ext for _,ext in failures}=={'.vp3'}
+    assert failures==[] and report['checks_passed']
     assert not report['external_files_tested'] and not report['physical_sewouts_tested']
     assert len(report['implementation_sha256'])==64
     assert sum(len(row['exports']) for row in report['cases'])==99

@@ -43,15 +43,16 @@ def test_controls_do_not_reposition_and_zero_length_is_ignored():
     a=block([(1,0,'jump'),(99,99,'trim'),(2,0,'stitch'),(2,0,'stitch')])
     assert list(sewn_segments(a))==[((1,0),(2,0))]
 
-def test_installed_vp3_jump_omission_is_visible(tmp_path):
+def test_vp3_keeps_jump_landings(tmp_path):
+    # pyembroidery's writer used to drop this jump, sewing 1 -> 10 instead of 9 -> 10.
     from morale.model import Project,DesignObject
     from morale.formats import export_machine
     from morale.comparison import load_comparison
     project=Project(objects=[manual_object(DesignObject(),[[0,0,'jump'],[1,0,'stitch'],[9,0,'jump'],[10,0,'stitch']])])
     path=tmp_path/'gap.vp3';export_machine(project,path)
     _,_,report,_=load_comparison(project,path)
-    assert report['source']['sewn_bounds_mm']==report['decoded']['sewn_bounds_mm']
-    assert report['sewn_geometry']['decoded_outside_source']['estimated_outside_length_mm']>7
+    geometry=report['sewn_geometry']
+    assert all(geometry[d]['complete'] and geometry[d]['outside_samples']==0 for d in ('decoded_outside_source','source_outside_decoded'))
 
 def test_native_difference_markers_and_disclosure(tmp_path):
     from PySide6.QtWidgets import QApplication
@@ -60,8 +61,10 @@ def test_native_difference_markers_and_disclosure(tmp_path):
     from morale.comparison import ComparisonDialog
     app=QApplication.instance() or QApplication([])
     project=Project(objects=[manual_object(DesignObject(),[[0,0,'jump'],[1,0,'stitch'],[9,0,'jump'],[10,0,'stitch']])])
-    path=tmp_path/'gap.vp3';export_machine(project,path)
-    dialog=ComparisonDialog(project,path)
+    path=tmp_path/'gap.dst';export_machine(project,path)
+    # Compare the file with a design that has since moved, so every stitch deviates.
+    moved=Project.loads(project.dumps());moved.objects[0].y+=3
+    dialog=ComparisonDialog(moved,path)
     try:
         assert dialog.view.deviations and '0.15 mm tolerance' in dialog.geometry_note.text()
         dialog.deviation_toggle.setChecked(True)

@@ -41,6 +41,13 @@ test on scrap fabric before sewing a finished piece.
   text: strokes become satin columns over a center run, bowls and counters are
   opened and split at their joins, and wide strokes or dots keep a tatami fill.
 
+### Fixes (continued)
+- **VP3 export no longer misplaces stitches.** Jumps were dropped, so the machine
+  sewed a line where the design travelled. Jumps are now written as long-form moves
+  to their real landing, following Embroidermodder's VP3 implementation, and
+  VP3 exports verify like the other formats. Confirm on a Husqvarna or Pfaff
+  machine before relying on it.
+
 ### Checking and validation
 - **Design → Check design…** reviews a design without changing it: outside the
   hoop, narrow satins, small fills, long stitches, untrimmed jumps between
@@ -52,8 +59,7 @@ test on scrap fabric before sewing a finished piece.
 - **Export verification:** every machine-file export is reopened with the real
   reader and compared with the design (stitch and thread-change counts, edges,
   sampled path). The confirmation says "Export verified" or lists differences.
-  This shows that VP3 export misplaces stitches in ordinary designs; the README
-  now recommends DST for Husqvarna and Pfaff until that is fixed.
+  It revealed the VP3 problem fixed above.
 - Saving validates the project with the same rules as opening it, so Morale never
   writes a `.morale` file it cannot reopen.
 

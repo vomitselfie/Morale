@@ -1,4 +1,4 @@
-"""Minimal synthetic evidence for internal-jump information loss in VP3 export."""
+"""Minimal regression for VP3 internal jumps: different jump landings must give different files."""
 import argparse
 import hashlib
 import json
@@ -24,7 +24,7 @@ def build_probe(destination):
     for extension in ('.vp3','.pes','.exp'):
         report['formats'][extension]={'identical_bytes_for_different_jump_landings':
             report['cases'][0]['exports'][extension]['sha256']==report['cases'][1]['exports'][extension]['sha256']}
-    report['interpretation']='Identical output for different internal jump landings proves those landings cannot be recovered uniquely from these files. This probe does not identify a valid alternative VP3 encoding.'
+    report['interpretation']='Different internal jump landings must produce different files that reopen with the same sewn path. The upstream writer produced identical bytes here; Morale writes jumps as long-form moves (morale/vp3_format.py).'
     (root/'report.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
     return report
 

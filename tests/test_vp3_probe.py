@@ -9,8 +9,8 @@ def test_probe_preserves_distinct_sources_and_exposes_lost_landings(tmp_path):
     a=Project.loads((root/'landing-4/source.morale').read_text())
     b=Project.loads((root/'landing-8/source.morale').read_text())
     assert a.objects[0].stitch_data!=b.objects[0].stitch_data
-    assert report['formats']['.vp3']['identical_bytes_for_different_jump_landings']
-    for extension in ('.pes','.exp'):
+    # The VP3 writer keeps jump landings, so different landings give different files.
+    for extension in ('.vp3','.pes','.exp'):
         assert not report['formats'][extension]['identical_bytes_for_different_jump_landings']
         for case in report['cases']:
             geometry=case['exports'][extension]['comparison']['sewn_geometry']

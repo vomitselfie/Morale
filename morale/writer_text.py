@@ -67,7 +67,10 @@ def writer(extension):
         return _adapter(PesWriter,{'write_pes_string_8':lambda f,s:_utf8(f,s,'B',255),
             'write_pes_string_16':lambda f,s:_utf8(f,s,'<H',65535),'write_pec':_embedded_pec})
     if extension=='.vp3':
-        adapted=_adapter(Vp3Writer,{'vp3_write_string_8':lambda f,s:_utf8(f,s,'>H',65535)})
+        from .vp3_format import write_stitches_block
+        # Jumps are written as long-form moves to their real landing (see vp3_format).
+        adapted=_adapter(Vp3Writer,{'vp3_write_string_8':lambda f,s:_utf8(f,s,'>H',65535),
+                                    'write_stitches_block':write_stitches_block})
         colorblock=adapted.write_vp3_colorblock
         def positioned_colorblock(stream,first,cx,cy,stitches,thread):
             return colorblock(stream,False,int(cx),int(cy),stitches,thread)

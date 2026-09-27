@@ -214,6 +214,10 @@ def export_machine(project, path, blocks=None, *, pes_version=6):
     # Reserve one encoder unit for endpoint rounding. Subdivide sewn motion
     # before the upstream encoder can substitute jumps for oversized spans.
     maximum=FORMAT_REGISTRY[path.suffix.lower()]['writer'].MAX_STITCH_DISTANCE-1
+    if path.suffix.lower()=='.vp3':
+        # VP3 sews only short-form stitches; long-form records mean travel (vp3_format).
+        from .vp3_format import SHORT_LIMIT
+        maximum=SHORT_LIMIT-1
     source_stitches=sum(row[2] & emb.COMMAND_MASK==emb.STITCH for row in pattern.stitches)
     pattern,added_stitches=subdivide_sewn_spans(pattern,maximum)
     # Several binary headers use a fixed 16-byte name field. The upstream TBF

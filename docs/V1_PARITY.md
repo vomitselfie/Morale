@@ -1323,3 +1323,12 @@ Full Linux offscreen suite: 1,937 passed.
   PES, DST, EXP, JEF and XXX verify for the wildflower example; VP3 fails, with
   about 270 mm of stitching displaced, so the known VP3 limitation affects
   ordinary designs, not only edge cases.
+
+### VP3 jump fix: strict image-export gate passes
+
+VP3 jumps are now written as long-form moves to their landing (following
+Embroidermodder) and read back as jumps; sewn spans are split below 12.7 mm.
+The eleven-case image benchmark now passes overall: all 99 exports pass bounds
+and sampled sewn-path checks, including the seven VP3 cases that failed before.
+The retained report is docs/image-benchmark-report.json. Physical Husqvarna/Pfaff
+sew-outs remain the outstanding evidence.

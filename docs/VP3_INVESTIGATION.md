@@ -1,5 +1,7 @@
 # VP3 internal-jump investigation
 
+**Status: fixed in Morale** (see *Resolution* below). The original findings follow.
+
 The current export path loses information before decoding. Two otherwise identical
 one-color designs have commands at these physical X coordinates (Y is zero):
 
@@ -37,3 +39,28 @@ and multiple sewn runs of the same color. They should preserve source commands
 or a reliable authoring preview. Do not fix this by guessing landings, treating
 all long records as travel, or inserting artificial color changes. Other formats,
 image quality and native parity work can continue while this remains unresolved.
+
+## Resolution
+
+VP3 has no jump command. pyembroidery's writer skipped jumps without moving
+its position, so the stitch after a jump was encoded from the point before it
+and the machine sewed a straight line where the design travelled. Export
+verification later showed this displaced about 270 mm of stitching in the
+ordinary wildflower example, so it was not an edge case.
+
+A second implementation settled the ambiguity described above. Embroidermodder's
+libembroidery (`format-vp3.c`, zlib license) writes every movement and reads the
+long form `80 01 dx dy 80 02` as a travel move, as Jason Weiler's notes describe.
+Only pyembroidery reads the long form as a stitch. Morale now follows the
+majority reading (`morale/vp3_format.py`):
+
+- jumps are written as long-form moves to their real landing;
+- sewn stitches are always short-form; VP3 export splits sewn spans below 12.7 mm
+  so no long sewn span can be mistaken for travel;
+- Morale's reader treats long-form records as jumps.
+
+The probe designs now produce different files that reopen with identical sewn
+paths; the wildflower verifies within 0.04 mm; and the eleven-case image
+benchmark passes its sewn-path gate for all nine formats. What remains unverified
+is how a physical Husqvarna/Pfaff machine sews the long-form moves: a sew-out on
+one of those machines is the outstanding evidence.

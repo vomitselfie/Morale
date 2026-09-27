@@ -81,7 +81,7 @@ The [user guide](docs/USER_GUIDE.md) explains each step with more detail.
 | Brother, Baby Lock, Deco | **PES** (if an older machine refuses it, choose PES version 1) |
 | Bernina | **EXP** |
 | Janome, Elna, Kenmore | **JEF** |
-| Husqvarna Viking, Pfaff | **DST** for now. Morale's VP3 files are not yet reliable: the export check shows stitches out of place in most designs |
+| Husqvarna Viking, Pfaff | **VP3**. VP3 export was fixed recently, so confirm your first design on scrap fabric; these machines usually also accept **DST** |
 | Singer | **XXX** |
 | Commercial and most other machines | **DST** |
 
