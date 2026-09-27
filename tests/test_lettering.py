@@ -95,6 +95,8 @@ def test_lettering_exports_to_all_machine_writers(tmp_path, extension):
 
 def test_native_lettering_dialog(app):
     dialog = LetteringDialog()
+    # This test covers computer-font lettering; embroidery fonts have their own tests.
+    dialog.source.setCurrentIndex(dialog.source.findData("system"))
     dialog.text.setText("Hi")
     dialog.height.setValue(12)
     dialog.accept()

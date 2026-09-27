@@ -89,7 +89,8 @@ class ArtworkMixin:
     def change_lettering_stitches(self, obj, stitch_type):
         """Switch lettering stitches; choosing satin plans its columns."""
         from .lettering import STITCH_TYPES, finish_lettering
-        if stitch_type not in STITCH_TYPES:
+        # Embroidery fonts sew exactly as digitized; only system fonts are re-planned.
+        if stitch_type not in STITCH_TYPES or obj.lettering.get("embroidery_font"):
             self.sync_properties()
             return
         candidate = deepcopy(obj)

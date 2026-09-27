@@ -26,7 +26,10 @@ def lettering_font(text,family,height,spacing):
     return font,actual_family
 
 
-def make_lettering(text, family, height=15., spacing=100., previous=None, *, layout="straight", curve=60., baseline=None, stitch_type=None):
+def make_lettering(text, family, height=15., spacing=100., previous=None, *, layout="straight", curve=60., baseline=None, stitch_type=None, embroidery_font=None):
+    if embroidery_font is not None:
+        from .embroidery_fonts import make_font_lettering
+        return make_font_lettering(text, embroidery_font, height, spacing, previous)
     if stitch_type is not None and stitch_type not in STITCH_TYPES:
         raise ValueError("Choose satin columns, tatami fill, running or triple running lettering.")
     if layout=="path":
@@ -129,14 +132,33 @@ class LetteringDialog(QDialog):
         self.candidate = None
         settings = obj.lettering if obj else {}
         layout = QVBoxLayout(self)
-        note = QLabel("Create lettering from an installed font. Satin columns are planned automatically from the letter outlines; wide or complex strokes keep a tatami fill. These are not purpose-digitized embroidery fonts, and small text needs a sew-out test. Saved outlines travel with the project; editing requires a font on this computer.")
+        note = QLabel("Embroidery fonts were digitized by hand for sewing and are the best choice. Computer fonts work with any font installed here: Morale plans satin columns from the letter shapes, so test small text on scrap fabric first.")
         note.setWordWrap(True)
         layout.addWidget(note)
-        if settings and settings["family"] not in QFontDatabase.families():
+        from .embroidery_fonts import available_fonts, load_font, height_range
+        self._height_range = height_range
+        self._load_font = load_font
+        fonts = available_fonts()
+        if settings and not settings.get("embroidery_font") and settings["family"] not in QFontDatabase.families():
             missing = QLabel(f"The saved font '{settings['family']}' is unavailable. Choose a replacement before applying; Cancel keeps the saved outlines.")
             missing.setWordWrap(True)
             layout.addWidget(missing)
-        form = QFormLayout()
+        form = self.form = QFormLayout()
+        self.source = QComboBox()
+        self.source.addItem("Embroidery fonts (ready to sew)", "embroidery")
+        self.source.addItem("Computer fonts", "system")
+        # Embroidery fonts are straight text only, so text along a drawn path uses computer fonts.
+        use_embroidery = bool(fonts) and baseline is None and (not settings or bool(settings.get("embroidery_font")))
+        self.source.setCurrentIndex(0 if use_embroidery else 1)
+        self.source.model().item(0).setEnabled(bool(fonts) and baseline is None)
+        self.embroidery_font = QComboBox()
+        for font_id, name, license_name, _ in fonts:
+            self.embroidery_font.addItem(name, font_id)
+            self.embroidery_font.setItemData(self.embroidery_font.count() - 1, f"License: {license_name}", Qt.ItemDataRole.ToolTipRole)
+        if settings.get("embroidery_font"):
+            self.embroidery_font.setCurrentIndex(max(0, self.embroidery_font.findData(settings["embroidery_font"])))
+        self.size_hint = QLabel()
+        self.size_hint.setWordWrap(True)
         self.text = QLineEdit(settings.get("text", "Morale"))
         self.text.setMaxLength(80)
         self.font = QFontComboBox()
@@ -170,10 +192,17 @@ class LetteringDialog(QDialog):
         self.stitches.setCurrentIndex(max(0, self.stitches.findData(obj.stitch_type if obj else "satin")))
         self.stitches.setToolTip("Satin columns follow each stroke; strokes wider than 6 mm or too complex to split keep a tatami fill.")
         self.layout_choice.currentIndexChanged.connect(lambda: self.curve.setEnabled(self.layout_choice.currentData() == "curved"))
-        for title, widget in [("Text", self.text), ("Font", self.font), ("Letter height", self.height), ("Character spacing", self.spacing), ("Layout", self.layout_choice), ("Curve angle", self.curve), ("Stitches", self.stitches)]:
-            widget.setAccessibleName(title)
+        rows = [("Font type", self.source), ("Text", self.text), ("Embroidery font", self.embroidery_font), ("Font", self.font),
+                ("Letter height", self.height), ("", self.size_hint), ("Character spacing", self.spacing), ("Layout", self.layout_choice),
+                ("Curve angle", self.curve), ("Stitches", self.stitches)]
+        for title, widget in rows:
+            if title:
+                widget.setAccessibleName(title)
             form.addRow(title, widget)
         layout.addLayout(form)
+        self.source.currentIndexChanged.connect(self.update_source)
+        self.embroidery_font.currentIndexChanged.connect(self.update_source)
+        self.update_source()
         hint = QLabel("Monograms use the entered left-to-right order and enlarge the center letter. Curved layout bends the outlines along an arc.")
         hint.setWordWrap(True)
         layout.addWidget(hint)
@@ -190,9 +219,23 @@ class LetteringDialog(QDialog):
         layout.addWidget(buttons)
         self.resize(470, 300)
 
+    def update_source(self):
+        embroidery = self.source.currentData() == "embroidery"
+        for widget in (self.embroidery_font, self.size_hint):
+            self.form.setRowVisible(widget, embroidery)
+        for widget in (self.font, self.layout_choice, self.curve, self.stitches):
+            self.form.setRowVisible(widget, not embroidery)
+        if embroidery and self.embroidery_font.currentData():
+            font = self._load_font(self.embroidery_font.currentData())
+            low, high = self._height_range(font)
+            self.size_hint.setText(f"Sews best from {low:.0f} to {high:.0f} mm high. License: {font['license']}.")
+            if not low <= self.height.value() <= high:
+                self.height.setValue(min(max(self.height.value(), math.ceil(low)), math.floor(high)))
+
     def accept(self):
         try:
-            self.candidate = make_lettering(self.text.text(), self.font.currentFont().family(), self.height.value(), self.spacing.value(), self.previous, layout=self.layout_choice.currentData(), curve=self.curve.value(), baseline=self.baseline, stitch_type=self.stitches.currentData())
+            embroidery = self.embroidery_font.currentData() if self.source.currentData() == "embroidery" else None
+            self.candidate = make_lettering(self.text.text(), self.font.currentFont().family(), self.height.value(), self.spacing.value(), self.previous, layout=self.layout_choice.currentData(), curve=self.curve.value(), baseline=self.baseline, stitch_type=self.stitches.currentData(), embroidery_font=embroidery)
         except ValueError as exc:
             QMessageBox.warning(self, "Lettering", str(exc))
             return

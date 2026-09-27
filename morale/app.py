@@ -29,9 +29,52 @@ class MainWindow(WindowLayoutMixin, FileWorkflowsMixin, ArtworkMixin, EditingMix
         self._selected_id = value
         self.selected_ids = {value} if value else set()
 
+    # Document revisions: every committed change, undo, redo or replacement of the
+    # project gets a new number. Dirty state and stale previews compare revisions,
+    # and the project is serialized at most once per revision.
+    @property
+    def project(self):
+        return self._project
+
+    @project.setter
+    def project(self, project):
+        self._project = project
+        self.project_revision = self.new_revision()
+
+    def new_revision(self):
+        # Numbers are never reused: after undo and a different edit, the new state
+        # must not match a preview or save made for the undone one.
+        self._revision_counter = getattr(self, "_revision_counter", 0) + 1
+        return self._revision_counter
+
+    def serialized(self):
+        """The current project's JSON, computed once per revision."""
+        if self._serialized[0] != self.project_revision:
+            self._serialized = (self.project_revision, self.project.dumps())
+        return self._serialized[1]
+
+    @property
+    def saved(self):
+        """JSON of the last saved state ("" when never saved), kept for compatibility."""
+        return self._saved_snapshot
+
+    @saved.setter
+    def saved(self, snapshot):
+        self._saved_snapshot = snapshot
+        # Marking a state saved is rare, so compare against a fresh serialization;
+        # this also corrects the cache after any change made outside commit().
+        current = self.project.dumps()
+        self._serialized = (self.project_revision, current)
+        self.saved_revision = self.project_revision if snapshot and snapshot == current else -1
+
+    @property
+    def dirty(self):
+        return self.project_revision != self.saved_revision
+
     def __init__(self, recovery_root=None, *, background_generation=False):
         super().__init__()
         self.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "logo.svg")))
+        self._serialized = (None, "")
         self.project = demo_project()
         self.file_path = None
         self.saved = self.project.dumps()
@@ -105,12 +148,15 @@ class MainWindow(WindowLayoutMixin, FileWorkflowsMixin, ArtworkMixin, EditingMix
         return [obj for obj in self.project.objects if obj.id in self.selected_ids]
 
     def commit(self, change):
-        before = self.project.dumps()
+        before, revision = self.serialized(), self.project_revision
         change()
-        if before != self.project.dumps():
-            self.history.append(before)
+        after = self.project.dumps()
+        if before != after:
+            self.history.append((before, revision))
             self.limit_history(self.history)
             self.future.clear()
+            self.project_revision = self.new_revision()
+            self._serialized = (self.project_revision, after)
             self.refresh()
 
     def refresh(self):
@@ -125,7 +171,7 @@ class MainWindow(WindowLayoutMixin, FileWorkflowsMixin, ArtworkMixin, EditingMix
         self.reset_playback()
         self.generation_error = None
         if self.generation_runner:
-            snapshot = self.project.dumps()
+            snapshot = self.project_revision
             if self.preview_cache and self.preview_cache[0] == snapshot:
                 self.preview_debounce.stop()
                 self.generation_runner.cancel()
@@ -151,7 +197,7 @@ class MainWindow(WindowLayoutMixin, FileWorkflowsMixin, ArtworkMixin, EditingMix
         self.preview_debounce.stop()
         if self._closing or not self.generation_pending or self.generation_runner is None:
             return
-        if self.project.dumps() != self.pending_snapshot:
+        if self.project_revision != self.pending_snapshot:
             self.refresh()
             return
         try:
@@ -163,7 +209,7 @@ class MainWindow(WindowLayoutMixin, FileWorkflowsMixin, ArtworkMixin, EditingMix
     def calculation_ready(self, revision, blocks):
         if revision != self.preview_revision or not self.generation_pending:
             return
-        if self.pending_snapshot != self.project.dumps():
+        if self.pending_snapshot != self.project_revision:
             self.refresh()
             return
         self.generation_pending = False
@@ -195,7 +241,7 @@ class MainWindow(WindowLayoutMixin, FileWorkflowsMixin, ArtworkMixin, EditingMix
         focused = QApplication.focusWidget()
         if focused and self.isAncestorOf(focused):
             focused.clearFocus()
-        if self.generation_runner and not self.generation_pending and self.preview_cache and self.preview_cache[0] != self.project.dumps():
+        if self.generation_runner and not self.generation_pending and self.preview_cache and self.preview_cache[0] != self.project_revision:
             self.refresh()
         if self.generation_pending:
             self.statusBar().showMessage("Stitches are still being calculated. Wait for the current preview before using its commands.")
@@ -268,7 +314,7 @@ class MainWindow(WindowLayoutMixin, FileWorkflowsMixin, ArtworkMixin, EditingMix
         self.update_title()
 
     def update_title(self):
-        dirty = self.project.dumps() != self.saved
+        dirty = self.dirty
         self.setWindowTitle(f"{'● ' if dirty else ''}{self.project.name} — Morale")
 
     def sync_properties(self):
@@ -296,7 +342,7 @@ class MainWindow(WindowLayoutMixin, FileWorkflowsMixin, ArtworkMixin, EditingMix
             for index in range(self.stitch_type.count()):
                 mode = self.stitch_type.itemData(index)
                 # Lettering offers planned satin columns alongside fill and running.
-                enabled = mode in ({"manual"} if obj.kind == "stitches" else {"satin"} if obj.kind == "satin" else {"running", "triple", "motif"} if obj.kind == "path" else {"satin", "fill", "running", "triple"} if obj.lettering else {"fill", "contour", "running", "triple", "motif", "pattern"})
+                enabled = mode in ({"manual"} if obj.kind == "stitches" else {"satin"} if obj.kind == "satin" else {"running", "triple", "motif"} if obj.kind == "path" else {"satin"} if obj.lettering.get("embroidery_font") else {"satin", "fill", "running", "triple"} if obj.lettering else {"fill", "contour", "running", "triple", "motif", "pattern"})
                 self.stitch_type.model().item(index).setEnabled(enabled)
             self.fields["stitch_length"].setEnabled(obj.kind != "stitches")
             self.fields["minimum_stitch"].setEnabled(obj.kind != "stitches")
@@ -492,23 +538,29 @@ class MainWindow(WindowLayoutMixin, FileWorkflowsMixin, ArtworkMixin, EditingMix
 
     def undo(self):
         if self.history:
-            self.future.append(self.project.dumps())
+            self.future.append((self.serialized(), self.project_revision))
             self.limit_history(self.future)
-            self.project = Project.loads(self.history.pop())
-            self.refresh()
+            self.restore_snapshot(*self.history.pop())
 
     def redo(self):
         if self.future:
-            self.history.append(self.project.dumps())
+            self.history.append((self.serialized(), self.project_revision))
             self.limit_history(self.history)
-            self.project = Project.loads(self.future.pop())
-            self.refresh()
+            self.restore_snapshot(*self.future.pop())
+
+    def restore_snapshot(self, snapshot, revision):
+        # Restoring a snapshot restores its revision, so undoing back to the
+        # saved state reads as saved again.
+        self.project = Project.loads(snapshot)
+        self.project_revision = revision
+        self._serialized = (revision, snapshot)
+        self.refresh()
 
     @staticmethod
     def limit_history(history):
-        total = sum(sys.getsizeof(entry) for entry in history)
+        total = sum(sys.getsizeof(snapshot) for snapshot, _ in history)
         while len(history) > 1 and (len(history) > 100 or total > 32 * 1024 * 1024):
-            total -= sys.getsizeof(history.pop(0))
+            total -= sys.getsizeof(history.pop(0)[0])
 
     def change_hoop(self):
         if not self.syncing:
@@ -659,7 +711,7 @@ class MainWindow(WindowLayoutMixin, FileWorkflowsMixin, ArtworkMixin, EditingMix
         focused = QApplication.focusWidget()
         if focused and self.isAncestorOf(focused):
             focused.clearFocus()
-        if self.project.dumps() == self.saved:
+        if not self.dirty:
             return True
         answer = QMessageBox.question(self, "Save your design?", "This design has unsaved changes.", QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel, QMessageBox.StandardButton.Save)
         if answer == QMessageBox.StandardButton.Save:
@@ -670,7 +722,7 @@ class MainWindow(WindowLayoutMixin, FileWorkflowsMixin, ArtworkMixin, EditingMix
         decode_reference(project.reference)
         self.project = project
         self.file_path = path
-        self.saved = "" if recovered else project.dumps()
+        self.saved = "" if recovered else self.serialized()
         self.history.clear()
         self.future.clear()
         self.selected_id = ""

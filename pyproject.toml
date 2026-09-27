@@ -42,7 +42,7 @@ Changelog = "https://github.com/vomitselfie/Morale/blob/master/CHANGELOG.md"
 include = ["morale*"]
 
 [tool.setuptools.package-data]
-morale = ["assets/*.svg"]
+morale = ["assets/*.svg", "fonts/*/font.json.gz", "fonts/*/LICENSE"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

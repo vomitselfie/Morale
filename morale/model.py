@@ -204,7 +204,7 @@ class Project:
             if not isinstance(obj.lettering, dict):
                 raise ValueError("Invalid lettering properties.")
             if obj.lettering:
-                if obj.kind != "compound" or not {"text", "family", "height", "spacing"} <= set(obj.lettering) or set(obj.lettering) - {"text", "family", "height", "spacing", "layout", "curve", "layout_height", "baseline", "columns"}:
+                if obj.kind != "compound" or not {"text", "family", "height", "spacing"} <= set(obj.lettering) or set(obj.lettering) - {"text", "family", "height", "spacing", "layout", "curve", "layout_height", "baseline", "columns", "embroidery_font"}:
                     raise ValueError("Unsupported lettering properties.")
                 if not isinstance(obj.lettering["text"], str) or not 1 <= len(obj.lettering["text"]) <= 80 or not isinstance(obj.lettering["family"], str) or len(obj.lettering["family"]) > 200:
                     raise ValueError("Invalid lettering text or font.")
@@ -221,6 +221,9 @@ class Project:
                     if any(a==b for a,b in zip(baseline,baseline[1:])):raise ValueError('Lettering baseline has a zero-length segment.')
                 elif 'baseline' in obj.lettering:raise ValueError('Only path lettering can store a baseline.')
                 number(obj.lettering.get("curve", 60), -180, 180)
+                font_id = obj.lettering.get("embroidery_font")
+                if font_id is not None and (not isinstance(font_id, str) or not re.fullmatch(r"[A-Za-z0-9_\-]{1,100}", font_id) or "columns" not in obj.lettering):
+                    raise ValueError("Invalid embroidery font lettering.")
                 if "columns" in obj.lettering:
                     validate_columns(obj.lettering["columns"], number)
                     if obj.stitch_type != "satin":
@@ -296,16 +299,28 @@ class Project:
             project.objects.append(obj)
         return project
 
+    def validate(self):
+        """Raise ValueError unless the loader would accept this project.
+
+        The loader's rules are the single authority; saving uses them so that any
+        .morale file Morale writes can be reopened. Returns the serialized text.
+        """
+        text = self.dumps()
+        Project.loads(text)
+        return text
+
     def save(self, path):
-        # Replace atomically, preserving the previous project if writing fails.
+        # Validate first, then replace atomically, preserving the previous project
+        # if validation or writing fails.
         import os
         import tempfile
+        text = self.validate()
         path = Path(path)
         temporary = None
         try:
             with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, suffix=".tmp", delete=False) as stream:
                 temporary = Path(stream.name)
-                stream.write(self.dumps())
+                stream.write(text)
             os.replace(temporary, path)
         finally:
             if temporary is not None:

@@ -202,6 +202,8 @@ class WindowLayoutMixin:
             view.addAction(action)
         view.addAction(self.action("Previous trim / stop / thread change",lambda: self.jump_control(-1)))
         view.addAction(self.action("Next trim / stop / thread change",lambda: self.jump_control(1)))
+        design = self.menuBar().addMenu("&Design")
+        design.addAction(self.action("Check design…", self.check_design, "Ctrl+Shift+K"))
         help_menu = self.menuBar().addMenu("&Help")
         help_menu.addAction(self.action("Getting started", self.help))
         help_menu.addAction(self.action("Format compatibility", self.compatibility))

@@ -1,8 +1,9 @@
 """Opening, saving, exporting and recovering designs."""
 from copy import deepcopy
 from pathlib import Path
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFileDialog, QMessageBox, QInputDialog, QProgressDialog
+from PySide6.QtCore import Qt, QPointF
+from PySide6.QtWidgets import (QFileDialog, QMessageBox, QInputDialog, QProgressDialog, QDialog, QVBoxLayout, QLabel,
+    QListWidget, QDialogButtonBox)
 from .model import Project, demo_project, satin_sample
 from .hoop_dialog import HoopDialog as MultiHoopDialog
 from .threads import write_chart
@@ -16,7 +17,57 @@ from .formats import (export_machine, file_filters, export_notes, export_summary
     EXPORT_FORMATS)
 
 
+class DesignCheckDialog(QDialog):
+    """Design check results; choosing an issue selects and shows its object."""
+
+    SYMBOLS = {"error": "✕", "warning": "⚠", "info": "✓"}
+
+    def __init__(self, issues, window):
+        super().__init__(window)
+        self.setWindowTitle("Check design")
+        self.window, self.issues = window, issues
+        layout = QVBoxLayout(self)
+        errors = sum(i.severity == "error" for i in issues)
+        warnings = sum(i.severity == "warning" for i in issues)
+        summary = QLabel(f"{errors} problem{'s' if errors != 1 else ''} to fix before export · "
+                         f"{warnings} thing{'s' if warnings != 1 else ''} to review. Limits marked provisional "
+                         "are starting points until sew-out results confirm them. Nothing here changes your design.")
+        summary.setWordWrap(True)
+        layout.addWidget(summary)
+        self.list = QListWidget()
+        self.list.setAccessibleName("Design check results")
+        self.list.setWordWrap(True)
+        for issue in issues:
+            self.list.addItem(f"{self.SYMBOLS[issue.severity]}  {issue.message}")
+        self.list.currentRowChanged.connect(self.show_issue)
+        layout.addWidget(self.list, 1)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        self.resize(560, 420)
+
+    def show_issue(self, row):
+        if not 0 <= row < len(self.issues):
+            return
+        issue = self.issues[row]
+        if issue.object_id and any(o.id == issue.object_id for o in self.window.project.objects):
+            self.window.select(issue.object_id)
+        if issue.position is not None:
+            # Centre the canvas on the issue: screen = centre + pan + world * scale.
+            canvas = self.window.canvas
+            canvas.pan = QPointF(-issue.position[0] * canvas.scale, -issue.position[1] * canvas.scale)
+            canvas.update()
+
+
 class FileWorkflowsMixin:
+    def check_design(self):
+        if not self.preview_available():
+            return
+        from .design_check import check_design
+        dialog = DesignCheckDialog(check_design(self.project, self.blocks), self)
+        dialog.exec()
+
+
     def multihoop_dialog(self):
         dialog = MultiHoopDialog(self.project, self)
         try:
@@ -187,7 +238,7 @@ class FileWorkflowsMixin:
         try:
             self.project.save(path)
             self.file_path = path
-            self.saved = self.project.dumps()
+            self.saved = self.serialized()
             self.checkpoint()
             self.update_title()
             self.statusBar().showMessage(f"Project saved · {path}")
@@ -246,8 +297,8 @@ class FileWorkflowsMixin:
         if not self.recovery:
             return
         try:
-            current = self.project.dumps()
-            if current == self.saved:
+            current = self.serialized()
+            if not self.dirty:
                 self.recovery.clear()
                 self.recovery_last = None
             elif current != self.recovery_last:

@@ -105,10 +105,11 @@ def test_unsupported_image_type_rejected(tmp_path):
 
 
 def test_history_has_count_and_memory_limits():
-    history = ["x"] * 101
+    # Undo entries pair a project snapshot with its revision number.
+    history = [("x", n) for n in range(101)]
     MainWindow.limit_history(history)
     assert len(history) == 100
-    history = ["x" * (17 * 1024 * 1024), "y" * (17 * 1024 * 1024)]
+    history = [("x" * (17 * 1024 * 1024), 1), ("y" * (17 * 1024 * 1024), 2)]
     MainWindow.limit_history(history)
     assert len(history) == 1
 

@@ -102,17 +102,20 @@ Made a mistake? Choose **Edit → Undo** or press **Ctrl+Z** (**⌘Z** on a Mac)
 
 1. Choose **Edit → Add lettering…**.
 2. Type your text.
-3. Choose a **Font**. Any font installed on your computer works.
-4. Set the **Letter height**. Around 10 mm or more sews most reliably; very small
-   text is hard for any machine.
-5. Leave **Stitches** on **Satin columns** for smooth, shiny letters.
-6. Click **OK**.
+3. Leave **Font type** on **Embroidery fonts (ready to sew)** and pick a font.
+   Morale includes about 120 fonts that were digitized by hand for embroidery.
+4. Set the **Letter height**. Each embroidery font shows the sizes it sews best
+   at, for example "Sews best from 10 to 25 mm high".
+5. Click **OK**.
 
-Morale works out the satin columns for each letter for you. To change the text
+**Computer fonts:** set **Font type** to **Computer fonts** to use any font
+installed on your computer. Morale then works out satin columns from the letter
+shapes itself. This works well for simple fonts, but test small text on scrap
+fabric first. Around 10 mm or more sews most reliably. To change the text
 later, select it and choose **Edit → Edit lettering…**.
 
-In the same window, set **Layout** to *Curved* to bend text in an arc or to
-*Three-letter monogram* for a monogram. To place letters along a line you have
+With computer fonts you can also set **Layout** to *Curved* to bend text in an
+arc, or to *Three-letter monogram*. To place letters along a line you have
 drawn, choose **Edit → Add lettering along path…**.
 
 ## Turning a picture into embroidery
@@ -162,6 +165,11 @@ store colours), choose **File → Export thread chart…**.
 
 ## Checking your design before you sew
 
+- **Choose Design → Check design…** for a list of anything worth a second look:
+  parts outside the hoop, satin columns too thin to sew well, very small filled
+  shapes, long stitches that can snag, long jumps that leave loose threads, and
+  places where many layers of stitches pile up. Click an item to jump to it.
+  Nothing is changed for you; you decide what to fix.
 - **Press ▶ Preview** to watch the design stitch on screen, part by part. Drag
   the slider to jump forward or back, and press **Reset** to see the whole design.
 - **Look at the stitch sequence** on the left. Parts sewn on top of others should

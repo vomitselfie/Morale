@@ -19,11 +19,13 @@ Draw designs, turn pictures into stitches, add lettering, and save files for you
 
 - **Turns pictures into embroidery.** Open a logo, clip-art or drawing and Morale
   works out the stitches for you. You can review and change everything before sewing.
-- **Adds lettering** in any font on your computer, sewn with smooth satin stitches.
+- **Adds lettering** with about 120 fonts digitized by hand for embroidery, or any
+  font on your computer, sewn with smooth satin stitches.
 - **Lets you draw your own designs** with simple shapes, lines and satin borders.
 - **Opens and saves machine files** for Brother, Bernina, Janome, Husqvarna,
   Singer and most other home machines.
-- **Shows the design being stitched** on screen before you use any thread.
+- **Shows the design being stitched** on screen before you use any thread, and
+  **checks it** for common problems before you sew.
 - **Works without the internet.** There is no account, no subscription and no
   advertising. Your designs stay on your computer.
 

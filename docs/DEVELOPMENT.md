@@ -121,6 +121,25 @@ modules live in `morale/`.
 Morale is licensed under the GNU GPL, version 3 or later (`GPL-3.0-or-later`); contributions are accepted under the same license. Dependencies retain their own licenses; see
 [third-party notices](../THIRD_PARTY_NOTICES.md).
 
+## Embroidery fonts
+
+`morale/fonts/` holds fonts converted from the
+[Ink/Stitch embroidery font library](https://github.com/inkstitch/embroidery-fonts).
+To regenerate them, clone that repository (for example into the git-ignored
+`reference/` folder) and run:
+
+```sh
+python scripts/import_inkstitch_fonts.py reference/embroidery-fonts/src morale/fonts
+```
+
+Fonts with non-commercial or no-derivatives licenses are skipped. Update the font
+table in THIRD_PARTY_NOTICES.md after regenerating.
+
+## Sew-out validation
+
+`python -m morale.coupons --output DIR` builds the physical test coupons. See
+[SEWOUT_VALIDATION.md](SEWOUT_VALIDATION.md) for how results are recorded.
+
 ## Project documents
 
 - [Roadmap](ROADMAP.md) and the [v1 parity ledger](V1_PARITY.md), which tracks

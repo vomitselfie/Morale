@@ -28,7 +28,7 @@ not a reproduction of the vendor's specifications or a claim of equivalence.
 | Satin | Digitize rails, vary width, handle corners, split excessive spans | Paired-rail drawing, numeric editing, interpolation, local crossing rejection, split length, center underlay tested; acute corner optimization/global overlap checks pending |
 | Fill generation | Predictable tatami coverage of concave shapes/holes, variable angles/density | Scanline fill supports compound even-odd contours, holes, nested islands, and disjoint components with interior-tested connectors. Bounded fill-run routing and fill-angle travel search tested; arbitrary entry/exit routing remains pending |
 | Sew-out quality | Tie stitches, trims, minimum-length filtering, compensation, underlay, overlaps | Ties/trims, conservative short-stitch cleanup, inset edge/sparse-fill and center/zigzag underlay, and fill/satin compensation tested. Covered-fill removal with allowance and boundary-coincidence regression tested. Fabric presets and physical sew-outs pending |
-| Lettering | Editable text, font choice, sizing/spacing, curved layouts, monograms | Straight/arc-bent system-font text and center-enlarged three-letter monograms, editable settings, portable contours and nine-format export tested. Drawn-path shaped-glyph placement tested. Automatic satin-column lettering from any system font (crotch splitting, hole opening, join overlap, stored plans) tested; purpose-digitized embroidery fonts and kerning-aware routing pending |
+| Lettering | Editable text, font choice, sizing/spacing, curved layouts, monograms | Straight/arc-bent system-font text and center-enlarged three-letter monograms, editable settings, portable contours and nine-format export tested. Drawn-path shaped-glyph placement tested. Automatic satin-column lettering from any system font tested. 120 purpose-digitized embroidery fonts (converted from Ink/Stitch, with kerning and designed size ranges) tested; curved/path layout for embroidery fonts and sew-out validation pending |
 | Artwork | Reference image, SVG import with units/transforms/holes, editable tracing | Embedded raster references, SVG solid-fill/running-outline import, and raster color-region tracing with editable contours and Undo tested. Smooth shared-boundary raster tracing, fitted SVG export, stroke expansion, dashed borders, positive pathLength calibration and paint order tested; clipping, masks and gradient paints remain pending |
 | Automatic digitizing | Turn raster/vector artwork into editable objects; expose correction tools | Solid SVG fills generate tatami and SVG strokes generate running outlines. Raster color reduction and smooth shared-boundary tracing preserve holes with cancellable source/vector/stitch previews. Initial physical-width running/satin/fill suggestions with per-region overrides tested; crotch-chord branch splitting at oblique angles, travel reduction and fill-angle search tested. Photographic digitizing and broader automatic routing remain pending |
 | Appliqué | Placement, tack-down, cover stitches, operator stops, fabric instructions | Editable placement/tack-down/tatami-cover stages, pauses, instructions, Undo and nine-format pause preservation tested. Automatic satin outer/cutout covers with explicit tatami fallback tested; physical fabric validation pending |
@@ -1301,3 +1301,20 @@ derived from the system font, so operating-system text scaling applies. Every me
 entry has an accelerator. Arrow keys nudge the selection by 0.1 mm, 1 mm with
 Shift, or one grid step, each an Undo step. Drawing new shapes still needs a
 pointer; numeric properties and point editors are the keyboard alternative.
+
+### Engineering review: validation before features
+
+Following an engineering review (validate before adding features):
+
+- **Sew-out coupons:** `morale/coupons.py` builds twelve single-variable coupons
+  with a 10 mm scale square, machine files, metadata and evaluation templates;
+  tests check that each fits the field and keeps clear of the scale square.
+  The process is in docs/SEWOUT_VALIDATION.md. No sew-out results exist yet.
+- **Revisions:** dirty state, stale previews and discard prompts compare revision
+  numbers; one edit serializes the project at most twice (tested). Revisions are
+  never reused after undo, and undo back to the saved state reads as saved.
+- **Save validation:** `Project.validate()` applies the loader's rules before any
+  write; every built-in and example project round-trips byte-for-byte.
+- **Design checks:** `morale/design_check.py` returns structured `DesignIssue`
+  records; preflight uses it, and Design → Check design shows and navigates them.
+Full Linux offscreen suite: 1,937 passed.

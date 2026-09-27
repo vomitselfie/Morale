@@ -65,7 +65,7 @@ def test_dialogs_opened_from_the_window_are_named_and_focusable(monkeypatch,tmp_
         polygon=DesignObject(name='Leaf',kind='polygon',stitch_type='running',points=[[-.5,-.5],[.5,-.5],[0,.5]])
         window.replace_project(Project(objects=[polygon]));window.select(polygon.id)
         for command in ('edit_points','edit_stitches','routing_dialog','create_applique','transform_dialog','thread_catalog_dialog',
-                        'add_lettering','placement_template','multihoop_dialog','custom_hoop','batch_convert','browse_designs'):
+                        'add_lettering','placement_template','multihoop_dialog','custom_hoop','batch_convert','browse_designs','check_design'):
             getattr(window,command)()
         monkeypatch.setattr(QFileDialog,'getOpenFileName',lambda *a:(str(picture),''))
         window.digitize_raster()

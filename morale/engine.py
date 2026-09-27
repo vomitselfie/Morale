@@ -144,8 +144,13 @@ def triple_run(stitches):
     return result
 
 
-def satin(points, spacing, maximum, compensation=0):
-    """Alternate rails sampled at half row spacing, splitting long spans."""
+def satin(points, spacing, maximum, compensation=0, strict=True):
+    """Alternate rails sampled at half row spacing, splitting long spans.
+
+    ``strict`` rejects rail cells that fold or cross. Hand-digitized lettering
+    turns tight curves with slightly concave cells, which sew as designed, so
+    lettering columns pass ``strict=False``.
+    """
     if isinstance(compensation, bool) or not math.isfinite(compensation) or not 0 <= compensation <= 2:
         raise ValueError("Pull compensation must be between 0 and 2 mm per side.")
     if len(points) < 4 or len(points) % 2:
@@ -162,10 +167,10 @@ def satin(points, spacing, maximum, compensation=0):
             if abs(turn) > 1e-8:
                 turns.append(1 if turn > 0 else -1)
         if turns:
-            if min(turns) != max(turns) or winding is not None and turns[0] != winding:
+            if strict and (min(turns) != max(turns) or winding is not None and turns[0] != winding):
                 raise ValueError("Satin rails cross or fold back. Keep left/right pairs in order and avoid concave rail cells.")
             winding = turns[0]
-        elif max(math.dist(left, right), math.dist(next_left, next_right)) > .01:
+        elif strict and max(math.dist(left, right), math.dist(next_left, next_right)) > .01:
             raise ValueError("Satin rail pairs overlap without forward progress.")
         distance = max(math.dist(left, next_left), math.dist(right, next_right))
         count = max(1, math.ceil(distance / (spacing / 2)))
@@ -175,7 +180,7 @@ def satin(points, spacing, maximum, compensation=0):
             t = i / count
             stations.append(((left[0] + (next_left[0] - left[0]) * t, left[1] + (next_left[1] - left[1]) * t),
                              (right[0] + (next_right[0] - right[0]) * t, right[1] + (next_right[1] - right[1]) * t)))
-    if winding is None:
+    if winding is None and strict:
         raise ValueError("Satin rails enclose no area.")
     if compensation:
         expanded = []
@@ -322,7 +327,7 @@ def lettering_columns(obj):
             if obj.underlay:
                 center = [((a[0]+b[0])/2, (a[1]+b[1])/2) for a, b in zip(rails[::2], rails[1::2])]
                 result += running(center, obj.stitch_length, closed=False)
-            result += satin(rails, obj.spacing, obj.satin_max, obj.pull_compensation)
+            result += satin(rails, obj.spacing, obj.satin_max, obj.pull_compensation, strict=False)
         elif "run" in piece:
             result += running(obj.transform(piece["run"]), obj.stitch_length, closed=False)
         else:
@@ -410,12 +415,6 @@ def generate(project):
 
 
 def preflight(project, blocks):
-    issues = []
-    points = [s for b in blocks for s in b.stitches]
-    if not any(s.command == "stitch" for s in points):
-        issues.append("The design has no stitches to export.")
-    outline = [p for obj in project.objects if obj.visible for ring in obj.rings() for p in ring]
-    if any(abs(x) > project.hoop_width / 2 + .001 or abs(y) > project.hoop_height / 2 + .001
-           for x, y in outline + [(s.x, s.y) for s in points]):
-        issues.append("The design extends beyond the selected hoop. Move or resize the objects before export.")
-    return issues
+    """Messages for problems that must block export (see design_check for the full review)."""
+    from .design_check import check_hoop
+    return [issue.message for issue in check_hoop(project, blocks) if issue.severity == "error"]

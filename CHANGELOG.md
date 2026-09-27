@@ -34,11 +34,28 @@ test on scrap fabric before sewing a finished piece.
 - Faster area measurement across conversion (full test suite about 27% faster).
 
 ### Lettering
+- **120 embroidery fonts**, digitized by hand for sewing, converted from the
+  Ink/Stitch font library (Open Font License, CC BY-SA and public domain fonts;
+  credits in THIRD_PARTY_NOTICES.md). Each font lists the sizes it sews best at.
 - **Satin-column lettering** from any installed font, now the default for new
   text: strokes become satin columns over a center run, bowls and counters are
   opened and split at their joins, and wide strokes or dots keep a tatami fill.
 
+### Checking and validation
+- **Design → Check design…** reviews a design without changing it: outside the
+  hoop, narrow satins, small fills, long stitches, untrimmed jumps between
+  objects, stacked layers and command count. Clicking an issue shows it.
+  Thresholds are labelled provisional until sew-outs confirm them.
+- **Sew-out coupons** (`python -m morale.coupons`): twelve single-variable test
+  designs with a scale square, metadata and evaluation forms, and a documented
+  process in docs/SEWOUT_VALIDATION.md.
+- Saving validates the project with the same rules as opening it, so Morale never
+  writes a `.morale` file it cannot reopen.
+
 ### Responsiveness
+- Editing no longer re-serializes the whole project several times per change:
+  unsaved-changes and stale-preview checks use revision numbers, and each state
+  is serialized at most once.
 - Opening and importing designs decode in a background process with a
   cancellable progress dialog, so large machine files no longer freeze the
   window.
