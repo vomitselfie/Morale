@@ -3,7 +3,10 @@
 Morale is pre-1.0. Stitch output has not been validated by physical sew-outs;
 test on scrap fabric before sewing a finished piece.
 
-## Unreleased
+## 0.3.0 — 2026-09-27
+
+Embroidery fonts, safer exports and the start of real-world validation. Morale is
+now free software under the GNU GPL.
 
 ### License
 - Morale is now licensed under the **GNU GPL, version 3 or later**. Anyone may use,

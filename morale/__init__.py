@@ -2,7 +2,7 @@
 import os
 import sys
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 # Qt's headless (offscreen) platform does not look in the Windows font folder, so
 # workers and tests would render blank text in PDFs and find no glyphs for
