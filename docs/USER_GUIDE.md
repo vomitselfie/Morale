@@ -184,6 +184,10 @@ store colours), choose **File → Export thread chart…**.
    the usual type for each brand, for example **PES** for Brother and **EXP** for
    Bernina.
 3. Choose where to save it, for example your USB stick, and click **Save**.
+   Morale then reopens the saved file and compares it with your design. If it
+   says **Export verified**, the file matches. If it says **Check the exported
+   file**, something changed while saving: try a different file type your
+   machine accepts.
 4. Put the USB stick in your machine (or use your machine's usual transfer
    method) and open the design there.
 

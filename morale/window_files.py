@@ -269,7 +269,17 @@ class FileWorkflowsMixin:
             result=export_machine(self.project, path, self.blocks, pes_version=1 if "PES v1" in selected_filter else 6)
             self.statusBar().showMessage(f"Exported {path.name} · {result['prepared_stitches']:,} stitches prepared · {result['subdivision_added_stitches']:,} positions added")
             notes = [export_summary(result),*export_notes(path.suffix.lower(), 1 if "PES v1" in selected_filter else 6)]
-            QMessageBox.information(self, "Stitches exported", f"Saved {path.name}.\n\n" + "\n\n".join(notes) + "\n\nTest on scrap fabric. Keep your editable .morale project.")
+            # Reopen the file with the real reader so format problems are visible now.
+            from .export_verify import verify_export, verification_text
+            try:
+                check = verify_export(self.blocks, path)
+                notes.insert(0, verification_text(check, path.name))
+            except Exception as exc:
+                check = {"verified": False}
+                notes.insert(0, f"Export check could not reopen {path.name}: {exc}")
+            show = QMessageBox.information if check["verified"] else QMessageBox.warning
+            show(self, "Stitches exported" if check["verified"] else "Check the exported file",
+                 f"Saved {path.name}.\n\n" + "\n\n".join(notes) + "\n\nTest on scrap fabric. Keep your editable .morale project.")
         except Exception as exc:
             self.error(f"Could not export the machine file.\n{exc}")
 

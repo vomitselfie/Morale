@@ -1318,3 +1318,8 @@ Following an engineering review (validate before adding features):
 - **Design checks:** `morale/design_check.py` returns structured `DesignIssue`
   records; preflight uses it, and Design → Check design shows and navigates them.
 Full Linux offscreen suite: 1,937 passed.
+- **Export verification:** exports are reopened with the real reader and compared
+  (counts, thread changes, bounds within 0.3 mm, sampled path within 0.15 mm).
+  PES, DST, EXP, JEF and XXX verify for the wildflower example; VP3 fails, with
+  about 270 mm of stitching displaced, so the known VP3 limitation affects
+  ordinary designs, not only edge cases.

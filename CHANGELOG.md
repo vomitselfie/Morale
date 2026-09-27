@@ -49,6 +49,11 @@ test on scrap fabric before sewing a finished piece.
 - **Sew-out coupons** (`python -m morale.coupons`): twelve single-variable test
   designs with a scale square, metadata and evaluation forms, and a documented
   process in docs/SEWOUT_VALIDATION.md.
+- **Export verification:** every machine-file export is reopened with the real
+  reader and compared with the design (stitch and thread-change counts, edges,
+  sampled path). The confirmation says "Export verified" or lists differences.
+  This shows that VP3 export misplaces stitches in ordinary designs; the README
+  now recommends DST for Husqvarna and Pfaff until that is fixed.
 - Saving validates the project with the same rules as opening it, so Morale never
   writes a `.morale` file it cannot reopen.
 
