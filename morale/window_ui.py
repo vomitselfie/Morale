@@ -130,7 +130,7 @@ class WindowLayoutMixin:
         edit.addAction(self.action("Delete object", self.delete, "Ctrl+Backspace"))
         edit.addAction(self.action("Edit path / satin points…", self.edit_points, "Ctrl+Shift+P"))
         edit.addAction(self.action("Enable Bezier handles", self.enable_bezier))
-        edit.addAction(self.action("Path start and direction…", self.routing_dialog))
+        edit.addAction(self.action("Sewing start and direction…", self.routing_dialog))
         edit.addAction(self.action("Fabric settings…", self.fabric_dialog))
         handles = edit.addMenu("Bezier handle dragging")
         self.handle_drag_actions = QActionGroup(self)

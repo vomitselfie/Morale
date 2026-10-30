@@ -87,13 +87,21 @@ is an overview, not an actual-size placement template.
   shapes. Select one object, choose **Nodes**, and drag a handle. Grid snapping
   applies; Escape cancels, and releasing validates and regenerates stitches in one
   Undo step. Numeric editors provide point insertion/deletion.
-- **Edit → Path start and direction** chooses an existing start anchor and
+- **Edit → Sewing start and direction** chooses an existing start anchor and
   direction for closed running/triple outlines, reverses open paths or satin
-  station order, and changes compound contour sewing order. The preview includes
+  station order, and changes compound contour sewing order. For tatami fills it
+  chooses outline corners near which the fill starts and ends: rows start from
+  the nearest of four orders (either end, rows laid from either side; two with a
+  density gradient) and travel inside the shape to the chosen points. The preview includes
   actual stitches, travel, underlay and finishing, with entry/exit markers and
   coordinates. Changes support Undo. Primitives become polygons when rerouted;
-  lettering becomes editable contours. Fill routing, arbitrary points within
-  curve segments and reversal of imported manual commands are not included.
+  lettering becomes editable contours. Arbitrary points within curve segments and
+  reversal of imported manual commands are not included.
+- **Inside travel for fills:** with both *Connect safe fill rows* and *Route
+  disconnected fill runs* on, jumps between fill sections become travel stitches
+  that go straight where that stays inside the shape, otherwise the shorter way
+  round a ring 0.5 mm inside the outline (up to 50 mm, provisional), adapted from
+  ZigZag. Travel that cannot stay inside remains a jump.
 - Editable cubic Bezier paths and closed polygons. Draw a path/polygon, choose
   **Edit → Enable Bezier handles**, then drag the small handles in **Nodes** mode.
   Anchors move their incoming/outgoing handles together. Numeric rows repeat

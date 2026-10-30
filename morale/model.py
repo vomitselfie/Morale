@@ -68,6 +68,10 @@ class DesignObject:
     pattern_flip_y: bool = False
     ripple_center_x: float = 0
     ripple_center_y: float = 0
+    # Where a tatami fill starts and finishes, normalized like ``points``; empty =
+    # automatic. Kept but unused while another stitch type is chosen.
+    fill_start: list = field(default_factory=list)
+    fill_end: list = field(default_factory=list)
 
     def outline(self):
         if self.handles:
@@ -113,7 +117,8 @@ SETTING_GROUPS = {
               "points", "handles", "contours", "stitch_data"),
     "thread": ("color", "thread", "color_break"),
     "stitch": ("stitch_type", "spacing", "stitch_length", "angle", "pull_compensation", "minimum_stitch"),
-    "fill": ("connect_fill", "route_fill", "density_gradient", "gradient_end_spacing", "gradient_reverse"),
+    "fill": ("connect_fill", "route_fill", "density_gradient", "gradient_end_spacing", "gradient_reverse",
+             "fill_start", "fill_end"),
     "satin": ("satin_max",),
     "underlay": ("underlay", "underlay_style", "underlay_inset", "underlay_spacing"),
     "motif": ("motif_pattern", "motif_width", "motif_height", "motif_spacing", "motif_row_spacing",
@@ -315,6 +320,11 @@ class Project:
             if obj.custom_motif_paths or obj.motif_pattern=='custom':
                 from .motifs import validate_custom
                 validate_custom(obj.custom_motif_paths)
+            for point in (obj.fill_start, obj.fill_end):
+                if not isinstance(point, list) or len(point) not in {0, 2}:
+                    raise ValueError("Fill start and end points must be empty or one point.")
+                for v in point:
+                    number(v, -.500000001, .500000001)
             if not isinstance(obj.underlay_style,str) or obj.underlay_style not in {"auto", "edge", "sparse", "edge_sparse", "zigzag", "center_zigzag"}:
                 raise ValueError("Unsupported underlay style.")
             if not isinstance(obj.points, list) or len(obj.points) > 2000:

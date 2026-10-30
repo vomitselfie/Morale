@@ -2,7 +2,7 @@
 from PySide6.QtCore import QPointF,Qt
 from PySide6.QtGui import QPainter,QPainterPath,QPen,QColor
 from PySide6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QFormLayout,QComboBox,QCheckBox,QLabel,QPushButton,QDialogButtonBox,QWidget
-from .routing import routing_rings,route_object
+from .routing import fill_anchors,route_fill,routing_rings,route_object
 from .model import Project
 from .engine import generate
 
@@ -42,6 +42,9 @@ class RoutePreview(QWidget):
 
 class RoutingDialog(QDialog):
     def __init__(self,source,parent=None):
+        if source.stitch_type=='fill' and source.kind!='stitches':
+            self.init_fill(source,parent)
+            return
         rings=routing_rings(source)
         super().__init__(parent)
         self.source=source
@@ -72,6 +75,64 @@ class RoutingDialog(QDialog):
         self.reverse.toggled.connect(self.changed)
         self.reload(0)
         self.resize(580,620)
+
+    def init_fill(self,source,parent):
+        """Tatami fills: pick outline corners near which sewing starts and ends."""
+        self.anchors=fill_anchors(source)
+        super().__init__(parent)
+        self.source=source
+        self.candidate=None
+        self.setWindowTitle('Fill start and end')
+        layout=QVBoxLayout(self)
+        note=QLabel('Choose where this fill starts and finishes, so the thread comes in and leaves '
+                    'near the parts sewn before and after it. Morale starts the rows from the nearest '
+                    'end and travels inside the shape to the points you choose, or keeps the nearest '
+                    'row end when the way is blocked. Green ring marks entry; red dot marks exit.')
+        note.setWordWrap(True); layout.addWidget(note)
+        form=QFormLayout()
+        corners=source.transform(self.anchors)
+        def chooser(name,current):
+            box=QComboBox(); box.setAccessibleName(name)
+            box.addItem('Automatic',None)
+            for i,(x,y) in enumerate(corners): box.addItem(f'Near point {i+1}: {x:.2f}, {y:.2f} mm',i)
+            if current in self.anchors: box.setCurrentIndex(self.anchors.index(current)+1)
+            box.currentIndexChanged.connect(self.refresh_fill)
+            return box
+        self.fill_start=chooser('Fill start',source.fill_start)
+        self.fill_end=chooser('Fill end',source.fill_end)
+        form.addRow('Start',self.fill_start); form.addRow('End',self.fill_end)
+        layout.addLayout(form)
+        self.preview=RoutePreview(); layout.addWidget(self.preview,1)
+        self.status=QLabel(); self.status.setWordWrap(True); self.status.setTextFormat(Qt.TextFormat.PlainText); layout.addWidget(self.status)
+        self.buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Ok|QDialogButtonBox.StandardButton.Cancel)
+        self.buttons.accepted.connect(self.accept); self.buttons.rejected.connect(self.reject); layout.addWidget(self.buttons)
+        self.refresh_fill()
+        self.resize(580,620)
+
+    @property
+    def fill_plan(self):
+        return {'start':self.fill_start.currentData(),'end':self.fill_end.currentData()}
+
+    def refresh_fill(self,*args):
+        self.plan=self.fill_plan
+        try:
+            self.candidate=route_fill(self.source,**self.plan)
+        except ValueError as exc:
+            self.candidate=None; self.status.setText(str(exc))
+        self.show_candidate()
+
+    def show_candidate(self):
+        try:
+            if self.candidate is not None:
+                stitches=generate(Project(objects=[self.candidate]))
+                self.preview.stitches=[s for b in stitches for s in b.stitches]
+                motions=[s for s in self.preview.stitches if s.command in {'stitch','jump'}]
+                self.status.setText(f'Entry: {motions[0].x:.2f}, {motions[0].y:.2f} mm · Exit: {motions[-1].x:.2f}, {motions[-1].y:.2f} mm' if motions else 'No visible stitches.')
+        except ValueError as exc:
+            self.candidate=None; self.status.setText(str(exc))
+        if self.candidate is None: self.preview.stitches=[]
+        self.preview.update()
+        self.buttons.button(QDialogButtonBox.StandardButton.Ok).setEnabled(self.candidate is not None)
 
     def reload(self,index):
         self.contour.blockSignals(True); self.contour.clear()

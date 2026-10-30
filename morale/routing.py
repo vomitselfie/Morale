@@ -1,4 +1,5 @@
-"""Explicit start anchors and direction for editable runs and satin stations."""
+"""Explicit start anchors and direction for editable runs and satin stations,
+and chosen start and end points for tatami fills."""
 from copy import deepcopy
 from .model import Project, drop_lettering
 
@@ -57,4 +58,30 @@ def route_object(source, plan):
             if source.handles:
                 result.handles=[deepcopy(source.handles[i][::-1] if plan[0][2] else source.handles[i]) for i in orders[0]]
         drop_lettering(result)
+    return Project.loads(Project(objects=[result]).dumps()).objects[0]
+
+
+def fill_anchors(source):
+    """Corners of a tatami fill's outer outline, normalized like its points."""
+    if source.stitch_type != 'fill' or source.kind == 'stitches':
+        raise ValueError('Choose a tatami fill to set where it starts and ends.')
+    if source.kind == 'compound':
+        return [list(point) for point in source.contours[0]]
+    local=deepcopy(source)
+    local.x=local.y=local.rotation=0
+    local.width=local.height=1
+    local.flip_x=local.flip_y=False
+    return [list(point) for point in local.outline()]
+
+
+def route_fill(source, start=None, end=None):
+    """``source`` starting and ending near outline corners ``start`` and ``end``
+    (indexes into fill_anchors), or automatically where None."""
+    anchors=fill_anchors(source)
+    for index in (start,end):
+        if index is not None and (type(index) is not int or not 0<=index<len(anchors)):
+            raise ValueError('Choose an existing outline point.')
+    result=deepcopy(source)
+    result.fill_start=anchors[start] if start is not None else []
+    result.fill_end=anchors[end] if end is not None else []
     return Project.loads(Project(objects=[result]).dumps()).objects[0]

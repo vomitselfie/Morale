@@ -6,7 +6,7 @@ from PySide6.QtCore import QMimeData
 from PySide6.QtWidgets import QApplication, QLineEdit, QPlainTextEdit, QTextEdit, QAbstractSpinBox
 from .model import Project
 from .nodes import PointDialog, ContourDialog
-from .routing import route_object
+from .routing import route_fill, route_object
 from .routing_dialog import RoutingDialog
 from .stitch_edit import StitchDialog, manual_object
 from .arrange import arrange_selection, transform_selection, bounds
@@ -39,7 +39,7 @@ class EditingMixin:
     def routing_dialog(self):
         obj = self.selected_object()
         if obj is None:
-            self.statusBar().showMessage("Select one running outline or satin column.")
+            self.statusBar().showMessage("Select one running outline, satin column or tatami fill.")
             return
         try:
             dialog = RoutingDialog(obj, self)
@@ -54,8 +54,8 @@ class EditingMixin:
     def apply_routing(self, plan):
         obj = self.selected_object()
         if obj is None:
-            raise ValueError("Select one running outline or satin column.")
-        candidate = route_object(obj, plan)
+            raise ValueError("Select one running outline, satin column or tatami fill.")
+        candidate = route_fill(obj, **plan) if isinstance(plan, dict) else route_object(obj, plan)
         if candidate == obj:
             return
         combined = deepcopy(self.project)
