@@ -72,7 +72,7 @@ def test_hand_encoded_dst_fixture(tmp_path):
     path.write_bytes(header.ljust(512, b" ") + bytes([1, 0, 3, 128, 0, 3, 0, 0, 195, 2, 0, 131, 0, 0, 243]))
     result = import_machine(path)
     points = [(s.x, s.y) for b in generate(result.project) for s in b.stitches if s.command == "stitch"]
-    assert points == pytest.approx([(.1, 0), (.1, -.1)])
+    assert [c for p in points for c in p] == pytest.approx([.1, 0, .1, -.1])
     assert len(result.project.objects) == 2
     assert any("Placeholder" in n for n in result.notes)
 

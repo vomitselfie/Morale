@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 import tempfile
 
-from PySide6.QtCore import QObject,Signal,QProcess,QProcessEnvironment,QTimer,QDir,QSortFilterProxyModel,Qt,QSize
+from PySide6.QtCore import QEvent,QObject,Signal,QProcess,QProcessEnvironment,QTimer,QDir,QSortFilterProxyModel,Qt,QSize
 from PySide6.QtGui import QImage,QPixmap,QImageReader
 from PySide6.QtWidgets import QFileSystemModel,QDialog,QVBoxLayout,QHBoxLayout,QPushButton,QLabel,QLineEdit,QTreeView,QFileDialog,QSplitter,QWidget,QStackedWidget,QListWidget,QAbstractItemView,QPlainTextEdit
 
@@ -243,6 +243,8 @@ class LibraryDialog(QDialog):
         self.results.itemSelectionChanged.connect(lambda:self.catalog_results_button.setText(f'Catalog selection ({len(self.results.selectedItems())})…' if self.results.selectedItems() else 'Catalog results…'))
         self.results.currentTextChanged.connect(self.search_selection_changed)
         self.results.itemActivated.connect(self.open_selected)
+        # macOS list views activate with Cmd+O, not Return; open with Return everywhere.
+        self.results.installEventFilter(self)
         self.file_views.addWidget(self.results);split.addWidget(self.file_views)
         from .library_thumbnails import ThumbnailLoader
         self.thumbnails=ThumbnailLoader(self.results,self)
@@ -410,6 +412,12 @@ class LibraryDialog(QDialog):
     def preview_failed(self,path,message):
         self.details.setText(f'{Path(path).name}\n{message}')
         self.open_button.setEnabled(False)
+
+    def eventFilter(self,watched,event):
+        if (watched is self.results and event.type()==QEvent.Type.KeyPress and not event.modifiers()
+                and event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter)):
+            self.open_selected();return True
+        return super().eventFilter(watched,event)
 
     def open_selected(self):
         if not self.preview_path:

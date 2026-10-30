@@ -25,7 +25,12 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Topic :: Multimedia :: Graphics :: Editors :: Vector-Based",
 ]
-dependencies = ["PySide6>=6.8,<7", "pyembroidery>=1.5.1,<2", "svgelements>=1.9.6,<2", "vtracer==1.0.0a4", "tinycss2>=1.4,<2", "cssselect2>=0.8,<1"]
+dependencies = [
+    # PySide6 6.12.0 drops a reference to None on every QPainterPath move/line
+    # call (fatal on Python 3.11) and intermittently aborts at exit. Lift the cap
+    # once a 6.12.x release passes the suite.
+    "PySide6>=6.8,<6.12",
+    "pyembroidery>=1.5.1,<2", "svgelements>=1.9.6,<2", "vtracer==1.0.0a4", "tinycss2>=1.4,<2", "cssselect2>=0.8,<1"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-timeout>=2.3", "pyinstaller>=6", "build>=1"]

@@ -55,6 +55,9 @@ points. Stitch output is still not validated by physical sew-outs.
 - Trims you add between parts are kept in PES, EXP, JEF, U01, XXX, DST, VP3 and
   TBF files, and the export check now compares trims and stops with the design.
 
+### Fixes
+- On a Mac, pressing Return on a design library search result now opens it.
+
 ### Project files
 - Projects are saved in a new layout (version 3) that groups each part's
   settings by purpose. Older projects open as before, but **projects saved by

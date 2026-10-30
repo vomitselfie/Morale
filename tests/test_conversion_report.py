@@ -2,12 +2,23 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 from copy import deepcopy
 import pytest
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication
 from morale.raster_trace import worker_main
 from morale.conversion_report import save_conversion_review
+
+def pdf_text(path,*options):
+    """Extracted PDF text, or None when no reliable extractor is available.
+
+    The pdftotext found on Windows CI runners drops words from long multi-page
+    reports that Poppler on Linux and macOS extracts completely, so text checks
+    run on those platforms only. The PDFs Morale writes are the same everywhere.
+    """
+    if sys.platform=='win32' or not shutil.which('pdftotext'):return None
+    return subprocess.check_output(['pdftotext',*options,str(path),'-'],text=True,encoding='utf-8')
 
 @pytest.fixture(scope='module',autouse=True)
 def app():return QApplication.instance() or QApplication([])
@@ -25,8 +36,8 @@ def test_pdf_contains_visual_pages_and_measurements_without_changing_project(tmp
     data=path.read_bytes();assert data.startswith(b'%PDF-')
     assert len(re.findall(rb'/Type /Page\b',data))>=4
     assert info==before
-    if shutil.which('pdftotext'):
-        text=subprocess.check_output(['pdftotext',str(path),'-'],text=True)
+    text=pdf_text(path)
+    if text is not None:
         assert 'art.svg' in text and 'private/folder' not in text
         assert 'Conversion measurements' in text and 'Needle-penetration review' in text
         assert 'not an actual-size' in text and 'share one physical frame' in text
@@ -35,8 +46,8 @@ def test_long_measurements_paginate_without_losing_last_line(tmp_path,preview):
     info,image=preview;info['trace_stats']['quality']['artwork_notes']=[f'Review detail {i}: inspect this generated region.' for i in range(250)]
     path=tmp_path/'long.pdf';save_conversion_review(path,'art.svg',info,image)
     assert len(re.findall(rb'/Type /Page\b',path.read_bytes()))>4
-    if shutil.which('pdftotext'):
-        text=subprocess.check_output(['pdftotext',str(path),'-'],text=True)
+    text=pdf_text(path)
+    if text is not None:
         for index in range(250):
             assert text.count(f'Review detail {index}:')==1
 
@@ -79,8 +90,8 @@ def test_underlay_settings_survive_worker_and_pdf(tmp_path):
     assert region['underlay']['style']=='edge_sparse' and region['underlay']['inset_mm']==.4
     path=tmp_path/'supports.pdf'
     save_conversion_review(path,'supports.svg',info,QImage(str(output/'preview.png')))
-    if shutil.which('pdftotext'):
-        text=subprocess.check_output(['pdftotext','-layout',str(path),'-'],text=True)
+    text=pdf_text(path,'-layout')
+    if text is not None:
         import unicodedata
         text=unicodedata.normalize('NFKC',text)
         assert 'Fill underlay: Edge run and sparse fill' in text
@@ -93,8 +104,8 @@ def test_wrapped_measurements_preserve_every_word_across_pages(tmp_path,preview)
     info['trace_stats']['quality']['artwork_notes']=[' '.join(tokens[i:i+80]) for i in range(0,len(tokens),80)]
     path=tmp_path/'wrapped.pdf';save_conversion_review(path,'art.svg',info,image)
     assert len(re.findall(rb'/Type /Page\b',path.read_bytes()))>4
-    if shutil.which('pdftotext'):
-        text=subprocess.check_output(['pdftotext',str(path),'-'],text=True)
+    text=pdf_text(path)
+    if text is not None:
         assert re.findall(r'marker\d{5}',text)==tokens
 
 
@@ -110,9 +121,10 @@ def test_pdf_maps_region_settings_to_reordered_sewing_positions(tmp_path):
     path=tmp_path/'ordered.pdf'
     save_conversion_review(path,source.name,info,QImage(str(output/'preview.png')))
     assert info==before
-    if shutil.which('pdftotext'):
+    text=pdf_text(path)
+    if text is not None:
         import unicodedata
-        text=unicodedata.normalize('NFKC',subprocess.check_output(['pdftotext',str(path),'-'],text=True))
+        text=unicodedata.normalize('NFKC',text)
         text=' '.join(text.split())
         assert 'Artwork region 1 (sew 2): fill' in text
         assert 'Artwork region 2 (sew 1): fill' in text
@@ -133,8 +145,8 @@ def test_review_identifies_captured_artwork_after_source_changes(tmp_path):
     source.write_text('changed after conversion')
     path=tmp_path/'review.pdf'
     save_conversion_review(path,str(source),info,QImage(str(output/'preview.png')))
-    if shutil.which('pdftotext'):
-        text=subprocess.check_output(['pdftotext',str(path),'-'],text=True)
+    text=pdf_text(path)
+    if text is not None:
         assert 'Source artwork SHA-256 (at conversion):' in text
         assert digest in text
         assert hashlib.sha256(source.read_bytes()).hexdigest() not in text

@@ -150,16 +150,21 @@ def test_enter_in_search_field_runs_recursive_search_without_default_action(tmp_
     finally:dialog.close()
 
 
-def test_enter_on_previewed_search_result_opens_design(tmp_path):
+@pytest.mark.parametrize('platform_activation',[True,False])
+def test_enter_on_previewed_search_result_opens_design(tmp_path,platform_activation):
     from PySide6.QtCore import Qt
     files(tmp_path);dialog=LibraryDialog(folder=str(tmp_path));dialog.show()
+    opened=[];dialog.accepted.connect(lambda:opened.append(dialog.selected_path))
     try:
+        # macOS list views do not activate items with Return.
+        if not platform_activation:dialog.results.itemActivated.disconnect()
         dialog.search.setText('blue');dialog.search_subfolders()
         wait(lambda:dialog.results.count()==1)
         dialog.results.setCurrentRow(0);wait(lambda:dialog.preview_path is not None)
         expected=dialog.preview_path
         dialog.results.setFocus();QTest.keyClick(dialog.results,Qt.Key.Key_Return)
         assert dialog.selected_path==expected and not dialog.isVisible()
+        assert opened==[expected]
     finally:dialog.close()
 
 

@@ -46,7 +46,7 @@ def test_manual_edit_preserves_absolute_geometry_color_and_identity():
     assert edited.color_break
     assert edited.rotation == 0
     result = generate(Project.loads(Project(objects=[edited]).dumps()))[0].stitches
-    assert [(s.x, s.y) for s in result] == pytest.approx([(-5, -2), (10, 8), (10, 8), (15, 4), (20, 6)])
+    assert [c for s in result for c in (s.x, s.y)] == pytest.approx([-5, -2, 10, 8, 10, 8, 15, 4, 20, 6])
     assert [s.command for s in result] == ["jump", "stitch", "stop", "jump", "stitch"]
 
 
