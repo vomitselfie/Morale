@@ -171,6 +171,25 @@ class FileWorkflowsMixin:
         message.setDetailedText(details)
         message.exec()
 
+    def test_swatches(self):
+        from .swatch_dialog import SwatchDialog
+        from .swatches import build_swatches
+        selected=self.selected_objects()
+        if not selected:
+            self.statusBar().showMessage('Select the parts to test first.');return
+        dialog=SwatchDialog(selected,self)
+        try:
+            if dialog.exec()!=dialog.DialogCode.Accepted:return
+            request=dialog.request()
+        finally:dialog.deleteLater()
+        try:project=build_swatches(self.project,{obj.id for obj in selected},**request)
+        except ValueError as exc:
+            self.error(str(exc));return
+        # Built before asking, so a refused layout never discards the design.
+        if not self.confirm_discard():return
+        self.replace_project(project)
+        self.statusBar().showMessage('Test swatches ready. Sew them on your real fabric and compare; the values are listed in Design → Design notes….')
+
     def load_sewout_coupon(self,name):
         if not self.confirm_discard():return
         from .coupons import build_project,COUPONS
