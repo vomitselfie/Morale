@@ -107,6 +107,16 @@ is an overview, not an actual-size placement template.
   stepped across 2–9 values in a grid that must fit the hoop, each labelled in a
   small embroidery font and listed in the design notes. The current design is
   only replaced after the usual unsaved-work prompt. Idea after ZigZag.
+- **Stitch settings in SVG names:** layer and object names (id, Inkscape label or
+  data-name, with Illustrator `_xHH_` escapes decoded) set stitch type (fill,
+  satin, run, contour, ripple, skip), angle, spacing, stitch length, pull
+  compensation, underlay, triple run, thread color, fill start/end (`st=`/`en=`
+  as fractions of the outline), trim and stop. Group names apply inside and inner
+  names override; `stroke.` tokens apply to outlines only, and `stroke.satin w=MM`
+  sews a stroke as a satin column. Filled shapes named `satin` go through the
+  automatic column check and stay fill with an explanation when unsuitable.
+  Unknown or out-of-range tokens are reported, never guessed. Vocabulary after
+  ZigZag; sewing order (`o=`), multicolor and tartan tokens are not used.
 - **Inside travel for fills:** with both *Connect safe fill rows* and *Route
   disconnected fill runs* on, jumps between fill sections become travel stitches
   that go straight where that stays inside the shape, otherwise the shorter way

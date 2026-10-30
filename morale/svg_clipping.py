@@ -202,7 +202,8 @@ def resolve_fill_clips(root,reference_shapes=None,*,paint_sink=None,layer_sink=N
                    'stroke':element.stroke.hex[:7] if element.stroke.value is not None else 'none',
                    'fill-opacity':str((element.fill.alpha or 0)/255),'stroke-opacity':str((element.stroke.alpha or 0)/255),
                    'opacity':str(values.get('opacity',1))}
-            for key in ('id','fill-rule','paint-order','stroke-width','stroke-linecap','stroke-linejoin','stroke-miterlimit','stroke-dasharray','stroke-dashoffset','pathLength','vector-effect'):
+            for key in ('id','fill-rule','paint-order','stroke-width','stroke-linecap','stroke-linejoin','stroke-miterlimit','stroke-dasharray','stroke-dashoffset','pathLength','vector-effect',
+                        'data-morale-settings','data-morale-name'):
                 if key in values:attrs[key]=str(values[key])
             if area is not None or paint_sink is not None:
                 from .svg_import import paint_order
@@ -227,6 +228,8 @@ def resolve_fill_clips(root,reference_shapes=None,*,paint_sink=None,layer_sink=N
                     clipped_attrs={'d':path_data(clipped),'stroke':'none','fill':paint.hex[:7],
                                    'fill-rule':'evenodd','fill-opacity':str(paint.alpha/255),'opacity':attrs['opacity']}
                     if 'id' in attrs:clipped_attrs['id']=attrs['id']+('-border' if paint_name=='stroke' else '')
+                    for key in ('data-morale-settings','data-morale-name'):
+                        if key in attrs:clipped_attrs[key]=attrs[key]
                     ET.SubElement(output,'path',clipped_attrs)
                 return
             else:

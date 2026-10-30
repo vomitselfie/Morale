@@ -150,6 +150,19 @@ def flat_object(grouped):
     return flat
 
 
+def placed_object(points, **settings):
+    """A DesignObject whose normalized ``points`` reproduce world ``points`` (mm)."""
+    xs, ys = zip(*points)
+    cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+    w, h = max(.1, max(xs) - min(xs)), max(.1, max(ys) - min(ys))
+    obj = DesignObject(x=cx, y=cy, width=w, height=h,
+                       # Rounding can land a bounding point a hair outside the box.
+                       points=[[max(-.5, min(.5, (x - cx) / w)), max(-.5, min(.5, (y - cy) / h))] for x, y in points])
+    for key, value in settings.items():
+        setattr(obj, key, value)
+    return obj
+
+
 def validate_columns(columns, number):
     """Planned satin-lettering pieces in the object's normalized frame."""
     if not isinstance(columns, list) or not 1 <= len(columns) <= 2000:

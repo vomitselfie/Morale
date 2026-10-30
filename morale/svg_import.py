@@ -34,7 +34,9 @@ def checked_xml(text, *, allow_dashes=False, paint_sink=None, layer_sink=None):
         raise ValueError("SVG document types and entity declarations are not supported.")
     root = ET.fromstring(text)
     from .svg_styles import apply_styles
+    from .svg_settings import annotate
     apply_styles(root)
+    annotate(root)
     def tag(node):
         return node.tag.split("}")[-1]
     if tag(root) != "svg":
@@ -178,7 +180,10 @@ def import_svg_text(text, *, center_artwork=True):
 
 
 def convert_document(document, notices, *, center_artwork=True):
+    from .svg_settings import ATTRIBUTE, NAME_ATTRIBUTE, parse, apply as apply_settings
     objects = []
+    named_settings = {}  # object id: settings from SVG names, applied once types are final
+    satin_fills = set()
     origin = (float(document.width) / 2, float(document.height) / 2)
     def point(p):
         result = ((p.x - origin[0]) * 25.4 / 96, (p.y - origin[1]) * 25.4 / 96)
@@ -190,6 +195,13 @@ def convert_document(document, notices, *, center_artwork=True):
             continue
         if element.values.get("display") == "none" or float(element.values.get("opacity", 1)) == 0:
             continue
+        base, outline_settings, _, problems = parse(element.values.get(ATTRIBUTE, ""))
+        notices.extend(problems)
+        if base.get("type") == "skip":
+            continue
+        own_words = parse(element.values.get(NAME_ATTRIBUTE, ""))[2]
+        outline_type = outline_settings.get("type") or (base.get("type") if base.get("type") in {"running", "satin", "skip"} else None)
+        outline_settings = {**{k: v for k, v in base.items() if k != "type"}, **outline_settings}
         order=paint_order(element.values.get("paint-order","normal"))
         first_object=len(objects)
         path = svg.Path(element)
@@ -246,7 +258,7 @@ def convert_document(document, notices, *, center_artwork=True):
                 controls.extend([incoming, end, end])
             closed = isinstance(segment, svg.Close)
         finish()
-        name = str(element.values.get("id") or element.values.get("tag") or "SVG shape")[:160]
+        name = str(" ".join(own_words) or element.values.get("id") or element.values.get("tag") or "SVG shape")[:160]
         fill_path = QPainterPath()
         rule = element.values.get("fill-rule", "nonzero")
         if rule not in {"nonzero", "evenodd"}:
@@ -276,16 +288,29 @@ def convert_document(document, notices, *, center_artwork=True):
                         ring.pop()
                     if len(ring) >= 3:
                         contours.append(ring)
-                objects.append(DesignObject(name=name, kind="compound", x=bounds.center().x()/20, y=bounds.center().y()/20,
+                fill = DesignObject(name=name, kind="compound", x=bounds.center().x()/20, y=bounds.center().y()/20,
                     width=bounds.width()/20, height=bounds.height()/20, contours=contours,
-                    color=element.fill.hex[:7], underlay=False, connect_fill=True))
+                    color=element.fill.hex[:7], underlay=False, connect_fill=True)
+                fill_type = base.get("type")
+                if fill_type in {"fill", "contour", "ripple", "running"}:
+                    fill.stitch_type = fill_type
+                elif fill_type == "satin":
+                    satin_fills.add(fill.id)
+                named_settings[fill.id] = {k: v for k, v in base.items() if k != "type"}
+                objects.append(fill)
         first_stroke=len(objects)
-        if element.stroke.value is not None and element.stroke.alpha and element.stroke_width > 0:
-            notices.append("SVG strokes become running centerlines; stroke width, caps, and joins are not embroidery borders.")
+        if element.stroke.value is not None and element.stroke.alpha and element.stroke_width > 0 and outline_type != "skip":
+            if outline_type != "satin":
+                notices.append("SVG strokes become running centerlines; stroke width, caps, and joins are not embroidery borders.")
             for controls, closed in outlines:
                 source = DesignObject(name=f"{name} · outline", kind="polygon" if closed else "path",
                                       stitch_type="running", color=element.stroke.hex[:7], underlay=False)
-                objects.append(edit_controls(source, controls))
+                outline = edit_controls(source, controls)
+                if outline_type == "satin":
+                    width = outline_settings.get("width", element.stroke_width * 25.4 / 96)
+                    outline = satin_outline(outline, width, closed, notices)
+                named_settings[outline.id] = outline_settings
+                objects.append(outline)
         if order.index("stroke") < order.index("fill"):
             objects[first_object:]=objects[first_stroke:]+objects[first_object:first_stroke]
         if len(objects) > 500:
@@ -300,6 +325,36 @@ def convert_document(document, notices, *, center_artwork=True):
         for obj in objects:
             obj.x -= dx
             obj.y -= dy
+    if satin_fills:
+        from .auto_digitize import choose_stitches
+        overrides = {str(i): "satin" for i, obj in enumerate(objects) if obj.id in satin_fills}
+        converted, decisions = choose_stitches(Project(objects=objects), "fill", overrides)
+        for decision in decisions:
+            if str(decision["region"]) in overrides and decision["selected"] != "satin":
+                notices.append(f"{objects[decision['region']].name}: kept as fill. {decision['reason']}")
+        objects = converted.objects
+    for obj in objects:
+        apply_settings(obj, named_settings.get(obj.id, {}), notices)
     project = Project.loads(Project(objects=objects).dumps())
     generate(project)
     return SVGImport(project.objects, list(dict.fromkeys(notices)))
+
+
+def satin_outline(outline, width, closed, notices):
+    """A satin column along a stroke named ``satin``, or the running outline
+    when the column cannot be sewn."""
+    from .model import placed_object
+    from .satin_geometry import centerline_rails
+    from .engine import satin
+    points = outline.outline()
+    if closed and len(points) > 2 and math.dist(points[0], points[-1]) < 1e-9:
+        points = points[:-1]
+    try:
+        rails = centerline_rails(points, width, closed=closed)
+        satin(rails, outline.spacing, outline.satin_max)
+        column = placed_object(rails, name=outline.name, kind="satin", stitch_type="satin", color=outline.color)
+        Project.loads(Project(objects=[column]).dumps())
+    except ValueError as exc:
+        notices.append(f"{outline.name}: kept as a running line; a {width:g} mm satin column does not fit this path. {exc}")
+        return outline
+    return column

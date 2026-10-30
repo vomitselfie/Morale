@@ -3,6 +3,13 @@
 Morale is pre-1.0. Stitch output has not been validated by physical sew-outs;
 test on scrap fabric before sewing a finished piece.
 
+## Unreleased
+
+### Artwork
+- **Stitch settings in SVG layer names:** name a layer or object in Illustrator,
+  Inkscape or Affinity (`petals fill a=30`, `border stroke.satin w=2`, `skip`) and
+  File → Import SVG artwork… stitches it that way. Unusable names are listed.
+
 ## 0.4.0 — 2026-10-30
 
 Cleaner satin columns, sharp corners, test swatches for your own fabric, richer

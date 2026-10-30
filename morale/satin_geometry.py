@@ -180,3 +180,36 @@ def overlapping_cells(pairs):
             if not separated:return other[4],index
         active.append(cell)
     return None
+
+
+def centerline_rails(line, width, step=.5, closed=False):
+    """Left/right rail points of a constant-width column along a polyline.
+
+    The line is resampled every ``step`` mm and each station is square to its
+    neighbours, so sharp corners overlap on the inside, which ``pivot_corners``
+    turns into fans. A closed line repeats its first station at the end.
+    """
+    if closed:
+        line = list(line) + [line[0]]
+    points = [line[0]]
+    for a, b in zip(line, line[1:]):
+        count = max(1, math.ceil(math.dist(a, b) / step))
+        points += [(a[0] + (b[0]-a[0])*i/count, a[1] + (b[1]-a[1])*i/count) for i in range(1, count + 1)]
+    deduplicated = [points[0]] + [p for p, q in zip(points[1:], points) if math.dist(p, q) > 1e-9]
+    if closed and len(deduplicated) > 1 and math.dist(deduplicated[0], deduplicated[-1]) <= 1e-9:
+        deduplicated.pop()
+    points = deduplicated
+    if len(points) < 2:
+        raise ValueError("A satin column needs a line with length.")
+    rails = []
+    for i, (x, y) in enumerate(points):
+        if closed:
+            a, b = points[i - 1], points[(i + 1) % len(points)]
+        else:
+            a, b = points[max(0, i - 1)], points[min(len(points) - 1, i + 1)]
+        length = math.dist(a, b)
+        nx, ny = -(b[1] - a[1]) / length, (b[0] - a[0]) / length
+        rails += [(x - nx * width / 2, y - ny * width / 2), (x + nx * width / 2, y + ny * width / 2)]
+    if closed:
+        rails += rails[:2]
+    return rails

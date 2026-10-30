@@ -32,15 +32,8 @@ SCALE_CORNER = (-45., 35.)  # The 10 mm scale square occupies x -45..-35, y 35..
 
 
 def _normalized(points, **settings):
-    xs, ys = zip(*points)
-    cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
-    w, h = max(.1, max(xs) - min(xs)), max(.1, max(ys) - min(ys))
-    obj = DesignObject(x=cx, y=cy, width=w, height=h, color=THREAD["color"], thread=dict(THREAD["thread"]),
-                       # Rounding can land a bounding point a hair outside the box.
-                       points=[[max(-.5, min(.5, (x - cx) / w)), max(-.5, min(.5, (y - cy) / h))] for x, y in points])
-    for key, value in settings.items():
-        setattr(obj, key, value)
-    return obj
+    from .model import placed_object
+    return placed_object(points, color=THREAD["color"], thread=dict(THREAD["thread"]), **settings)
 
 
 def _resample(points, step):
@@ -53,14 +46,8 @@ def _resample(points, step):
 
 def satin(centerline, width, name, **settings):
     """A satin column of constant width along a polyline centerline."""
-    line = _resample(centerline, .5)
-    pairs = []
-    for i, (x, y) in enumerate(line):
-        a, b = line[max(0, i - 1)], line[min(len(line) - 1, i + 1)]
-        length = math.dist(a, b)
-        nx, ny = -(b[1] - a[1]) / length, (b[0] - a[0]) / length
-        pairs += [(x - nx * width / 2, y - ny * width / 2), (x + nx * width / 2, y + ny * width / 2)]
-    return _normalized(pairs, name=name, kind="satin", stitch_type="satin", **settings)
+    from .satin_geometry import centerline_rails
+    return _normalized(centerline_rails(centerline, width), name=name, kind="satin", stitch_type="satin", **settings)
 
 
 def rectangle(cx, cy, w, h, name, **settings):

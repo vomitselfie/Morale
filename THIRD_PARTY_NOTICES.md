@@ -87,11 +87,12 @@ https://bottosson.github.io/posts/colorwrong/
 ## ZigZag
 
 Some satin and travel-routing techniques in `morale/satin_geometry.py` and
-`morale/fill_travel.py` are adapted from ZigZag (https://github.com/simpsoka/zigzag),
+`morale/fill_travel.py`, and the SVG layer-name settings vocabulary in
+`morale/svg_settings.py`, are adapted from ZigZag (https://github.com/simpsoka/zigzag),
 an embroidery studio by its contributors, licensed under the Apache License,
 Version 2.0. Morale reimplements them in Python with changes noted in the code:
-staggered satin split points, and travel stitches that follow the inside of a
-fill's outline. The license text follows.
+staggered satin split points, travel stitches that follow the inside of a
+fill's outline, and stitch settings read from SVG layer names. The license text follows.
 
 ```
 

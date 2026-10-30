@@ -67,6 +67,25 @@ press **Cancel** at any time.
 **To add a design to the one you are working on**, choose
 **File → Import machine design into project…**.
 
+**Drawings from Illustrator, Inkscape or Affinity** come in with
+**File → Import SVG artwork…**. You can tell Morale how to stitch each part by
+adding a few words to its layer or object name before you save the SVG:
+
+| Add to the name | What it does |
+| --- | --- |
+| `fill`, `satin`, `run`, `contour`, `ripple` | the stitch type (`satin` on a thin filled shape makes a satin column) |
+| `skip` | leave this part out |
+| `a=45` | fill angle in degrees |
+| `s=0.4` | row spacing in mm |
+| `pc=0.2` | pull compensation in mm |
+| `stroke.satin w=2` | sew the outline as a 2 mm satin column |
+| `r=3` | triple running stitch |
+| `trim`, `stop` | cut the thread, or pause the machine, after this part |
+
+For example, a layer named `petals fill a=30` sews every shape in it as a fill
+at 30°. Names on a layer apply to everything inside it. Anything Morale cannot
+use is listed after the import, and nothing else changes.
+
 ## Starting a new design
 
 1. Choose **File → New design**.
