@@ -10,6 +10,33 @@ SHORT_STITCH_INSET = .15
 PIVOT_LIMIT = .45
 
 
+# Split points move along the stitch by up to this fraction of a piece, cycling
+# through these offsets so they do not line up into a groove down the column.
+# After ZigZag's satin auto-split (Apache-2.0).
+SPLIT_STAGGER = (0, .33, -.33)
+
+
+def staggered_split(a, b, maximum, index):
+    """Positions splitting stitch ``index`` from a to b into pieces no longer
+    than ``maximum``, excluding a and including b.
+
+    Each stitch shifts its split points by a different offset; a stitch is cut
+    into more pieces when the shifted ones would otherwise exceed ``maximum``.
+    """
+    length = math.dist(a, b)
+    count = max(1, math.ceil(length / maximum))
+    offset = SPLIT_STAGGER[index % len(SPLIT_STAGGER)]
+    if count > 1 and offset:
+        # The longest piece is (1 + |offset|) / count of the stitch.
+        while length * (1 + abs(offset)) / count > maximum:
+            count += 1
+        shift = offset / count
+    else:
+        shift = 0
+    fractions = [i / count + shift for i in range(1, count)] + [1]
+    return [(a[0] + (b[0]-a[0])*f, a[1] + (b[1]-a[1])*f) for f in fractions]
+
+
 def _crossing(a, b, c, d):
     """Parameters (t, u) where segments a-b and c-d meet, ends included."""
     rx, ry, sx, sy = b[0]-a[0], b[1]-a[1], d[0]-c[0], d[1]-c[1]

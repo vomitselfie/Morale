@@ -201,3 +201,22 @@ def test_long_rail_loop_is_an_overlap_not_a_corner():
     from morale.satin_geometry import clip_rail_loops
     loop=[(r*math.cos(i*math.pi/4),r*math.sin(i*math.pi/4)) for i in range(11) for r in (12,)]
     assert clip_rail_loops(loop,8)==loop
+
+
+def test_long_satin_stitches_split_at_staggered_points():
+    stitches=satin([(0,0),(14,0),(0,20),(14,20)],.4,6)
+    landings=[(s.x,s.y) for s in stitches]
+    assert all(math.dist(a,b)<=6+1e-9 for a,b in zip(landings,landings[1:]))
+    # Split points (inside the column) no longer line up down the column.
+    inner=[round(x,3) for x,y in landings if 1e-6<x<14-1e-6]
+    assert len(set(inner))>=6
+
+
+def test_staggered_split_respects_limit_and_endpoints():
+    from morale.satin_geometry import staggered_split
+    for index in range(6):
+        for length in (5,6,6.5,10,12,13,30):
+            points=[(0,0)]+staggered_split((0,0),(length,0),6,index)
+            assert points[-1]==(length,0)
+            assert all(0<b[0]-a[0]<=6+1e-9 for a,b in zip(points,points[1:]))
+    assert staggered_split((0,0),(5,0),6,1)==[(5,0)]

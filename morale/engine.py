@@ -151,9 +151,10 @@ def satin(points, spacing, maximum, compensation=0, strict=True):
     that still fold, cross or overlap earlier cells. Hand-digitized lettering
     turns tight curves with slightly concave cells, which sew as designed, so
     lettering columns pass ``strict=False``. Crowded landings on the inside of
-    curves are shortened (see satin_geometry.short_stitch_targets).
+    curves are shortened (see satin_geometry.short_stitch_targets), and stitches
+    longer than ``maximum`` are split at staggered points.
     """
-    from .satin_geometry import pivot_corners, short_stitch_targets, validate_cells
+    from .satin_geometry import pivot_corners, short_stitch_targets, staggered_split, validate_cells
     if isinstance(compensation, bool) or not math.isfinite(compensation) or not 0 <= compensation <= 2:
         raise ValueError("Pull compensation must be between 0 and 2 mm per side.")
     if len(points) < 4 or len(points) % 2:
@@ -188,10 +189,10 @@ def satin(points, spacing, maximum, compensation=0, strict=True):
                 raise ValueError(f'Pull compensation produces invalid satin rails: {exc} Reduce compensation or split the column.') from exc
         stations = expanded
     result = [Stitch(*stations[0][0], "jump")]
-    for target in short_stitch_targets(stations):
+    for index, target in enumerate(short_stitch_targets(stations)):
         previous = (result[-1].x, result[-1].y)
         if math.dist(previous, target) > .001:
-            result.extend(segment(previous, target, maximum))
+            result.extend(Stitch(x, y) for x, y in staggered_split(previous, target, maximum, index))
         if len(result) > MAX_STITCHES:
             raise ValueError("Satin exceeds the preview command limit.")
     return result
@@ -371,6 +372,38 @@ def contour_fill(rings,spacing,length):
     return result
 
 
+def tatami(obj, rings):
+    """Tatami fill with its chosen entry and exit and any inside travel."""
+    from .fill_travel import FillTravel, choose_entry, enter_and_exit, reversed_stitches, travel_inside
+    def rows(angle):
+        return fill(rings[0], obj.spacing, obj.stitch_length, angle, obj.connect_fill, rings[1:], obj.pull_compensation,
+                    obj.gradient_end_spacing if obj.density_gradient else None, obj.gradient_reverse)
+    stitches = rows(obj.angle)
+    start = obj.transform([obj.fill_start])[0] if obj.fill_start else None
+    end = obj.transform([obj.fill_end])[0] if obj.fill_end else None
+    if (start or end) and stitches:
+        # Sew from either end, and (without a density gradient, which is anchored
+        # to one side) with rows laid from the opposite side.
+        candidates = [stitches, reversed_stitches(stitches)]
+        if not obj.density_gradient:
+            opposite = rows(obj.angle + 180)
+            if opposite:
+                candidates += [opposite, reversed_stitches(opposite)]
+        stitches = choose_entry(candidates, start, end)
+    if obj.route_fill:
+        from .fill_routing import route_fill_runs
+        stitches = route_fill_runs(stitches)
+    # Inside travel joins routed sections; unrouted rows would walk round every
+    # hole or notch they cross.
+    sectioned = obj.connect_fill and obj.route_fill
+    if sectioned or start or end:
+        travel = FillTravel(rings)
+        if sectioned:
+            stitches = travel_inside(stitches, travel, obj.stitch_length)
+        stitches = enter_and_exit(stitches, travel, obj.stitch_length, start, end)
+    return stitches
+
+
 def generate_object(obj):
     """An object's stitches as structured passes, before cleanup and finishing."""
     from .generated import GeneratedObject, GeneratedRun
@@ -411,12 +444,7 @@ def generate_object(obj):
         elif obj.stitch_type == "contour":
             stitches += contour_fill(rings,obj.spacing,obj.stitch_length)
         else:
-            fill_stitches = fill(rings[0], obj.spacing, obj.stitch_length, obj.angle, obj.connect_fill, rings[1:], obj.pull_compensation,
-                             obj.gradient_end_spacing if obj.density_gradient else None, obj.gradient_reverse)
-            if obj.route_fill:
-                from .fill_routing import route_fill_runs
-                fill_stitches=route_fill_runs(fill_stitches)
-            stitches += fill_stitches
+            stitches += tatami(obj, rings)
     runs = [GeneratedRun(underlay, "underlay")] if underlay else []
     if stitches:
         runs.append(GeneratedRun(stitches, "top"))
