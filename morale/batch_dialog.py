@@ -1,12 +1,10 @@
 """Native batch conversion workflow."""
-import json
 from collections import Counter
-from pathlib import Path
 
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidget, QLineEdit, QComboBox, QProgressBar, QPlainTextEdit, QFileDialog, QMessageBox)
 
-from .batch import ConversionQueue
+from .batch import ConversionQueue, save_report
 from .formats import file_filters, EXPORT_FORMATS
 
 
@@ -106,7 +104,11 @@ class BatchDialog(QDialog):
         self.report_button.setEnabled(not running and bool(self.queue.results))
 
     def show_result(self, row):
-        message = f"{row['status'].upper()} · {row['source']} → {row['target']}"
+        status=row['status'].upper()
+        if row['status']=='converted':
+            check=row.get('verification')
+            status+=' — '+('CHECKS PASSED' if check and check.get('verified') is True else 'REVIEW NEEDED' if check else 'NOT CHECKED')
+        message = f"{status} · {row['source']} → {row['target']}"
         if row["message"]:
             message += "\n  " + row["message"]
         for note in row["notes"]:
@@ -121,7 +123,16 @@ class BatchDialog(QDialog):
     def finished_queue(self):
         self.set_running(False)
         counts = Counter(row["status"] for row in self.queue.results)
-        self.summary.setText(" · ".join(f"{count} {status}" for status, count in sorted(counts.items())))
+        parts=[f"{count} {status}" for status, count in sorted(counts.items())]
+        converted=[row for row in self.queue.results if row['status']=='converted']
+        if converted:
+            checked=sum(row.get('verification',{}).get('verified') is True for row in converted)
+            review=sum(bool(row.get('verification')) and row['verification'].get('verified') is not True for row in converted)
+            parts.extend([f"{checked} checks passed",f"{review} need review"])
+            unchecked=len(converted)-checked-review
+            if unchecked:parts.append(f"{unchecked} not checked")
+        self.summary.setText(" · ".join(parts))
+        self.summary.setWordWrap(True)
         if self.closing:
             super().reject()
 
@@ -129,8 +140,8 @@ class BatchDialog(QDialog):
         path, _ = QFileDialog.getSaveFileName(self, "Save conversion report", "conversion-report.json", "JSON report (*.json)")
         if path:
             try:
-                Path(path).write_text(json.dumps(self.queue.results, indent=2) + "\n", encoding="utf-8")
-            except OSError as exc:
+                save_report(path,self.queue.results)
+            except (OSError,ValueError) as exc:
                 QMessageBox.warning(self, "Could not save report", str(exc))
 
     def reject(self):

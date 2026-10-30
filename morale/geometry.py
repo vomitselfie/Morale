@@ -38,6 +38,8 @@ def replace_contours(source, rings):
     candidate.contours = [[[(x - candidate.x) / candidate.width, (y - candidate.y) / candidate.height]
                            for x, y in ring] for ring in rings]
     drop_lettering(candidate)
+    from .ripple_fill import preserve_center
+    preserve_center(source,candidate)
     return Project.loads(Project(objects=[candidate]).dumps()).objects[0]
 
 
@@ -100,4 +102,6 @@ def combine_outlines(objects, operation):
     candidate.contours = contours
     # Keep membership only when all sources belong to the same flat group.
     candidate.group_id = objects[0].group_id if len({o.group_id for o in objects}) == 1 else ""
+    from .ripple_fill import preserve_center
+    preserve_center(objects[0],candidate)
     return Project.loads(Project(objects=[candidate]).dumps()).objects[0]

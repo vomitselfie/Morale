@@ -104,3 +104,51 @@ def test_quality_identifies_changed_region_and_keeps_legacy_reports_readable():
     assert 'Flower center: 1 hole filled; 4.00 mm² added.' in quality_text(report)
     del holes['changes'][0]['name'];del holes['changes'][0]['object_id']
     assert 'Source region 1: 1 hole filled' in quality_text(report)
+
+
+@pytest.mark.parametrize('stitch_type',['running','triple'])
+@pytest.mark.parametrize('x,visible,retained',[(0,True,True),(4,True,False),(0,False,False)])
+def test_hole_containing_running_detail_is_preserved(stitch_type,x,visible,retained):
+    project=source()
+    project.objects.append(DesignObject(kind='path',stitch_type=stitch_type,x=x,width=1,height=1,
+        points=[[-.5,0],[.5,0]],visible=visible))
+    before=project.dumps();result,report=fill_small_holes(project,5)
+    assert project.dumps()==before
+    assert report['occupied_holes_retained']==int(retained)
+    assert report['filled_holes']==int(not retained)
+    assert result.objects[1]==project.objects[1]
+
+
+def test_running_outline_surrounding_hole_does_not_protect_empty_interior():
+    project=source();project.objects.append(DesignObject(kind='rectangle',stitch_type='running',width=8,height=8))
+    result,report=fill_small_holes(project,5)
+    assert report['filled_holes']==1 and report['occupied_holes_retained']==0
+
+
+@pytest.mark.parametrize('with_line',[False,True])
+def test_svg_worker_hole_cleanup_preserves_running_detail_through_export(tmp_path,with_line):
+    from morale.raster_trace import worker_main
+    from morale.engine import generate
+    from morale.formats import export_machine
+    from morale.export_verify import verify_export
+    from morale.trace_quality import quality_text
+    line='<path d="M4.5 5 H5.5" fill="none" stroke="red"/>' if with_line else ''
+    path=tmp_path/'detail.svg'
+    path.write_text('<svg width="10mm" height="10mm" viewBox="0 0 10 10"><path fill="blue" fill-rule="evenodd" d="M0 0 H10 V10 H0Z M4 4 H6 V6 H4Z"/>'+line+'</svg>')
+    output=tmp_path/'converted';output.mkdir()
+    assert worker_main([str(path),str(output),json.dumps({'width':10,'minimum_hole_area':5,'stitch_mode':'fill'})])==0
+    info=json.loads((output/'preview.json').read_text());project=Project.loads(info['project'])
+    quality=info['trace_stats']['quality']
+    assert quality['hole_filter']['occupied_holes_retained']==int(with_line)
+    assert quality['hole_filter']['filled_holes']==int(not with_line)
+    fill=next(o for o in project.objects if o.stitch_type=='fill')
+    assert area(outline_path(fill.rings()))==pytest.approx(96 if with_line else 100,abs=.001)
+    if with_line:
+        assert any(o.stitch_type=='running' for o in project.objects)
+        assert 'running-stitch detail occupies' in quality_text(quality)
+    blocks=generate(project)
+    assert generate(Project.loads(project.dumps()))==blocks
+    for extension in ('pes','exp'):
+        target=tmp_path/f'converted.{extension}';export_machine(project,target,blocks)
+        check=verify_export(blocks,target)
+        assert check['verified'],check['problems']

@@ -90,8 +90,18 @@ def build_bundle(project,root,options):
     for tile in plan.tiles:
         name=f'hoop-{tile.row+1}-{tile.column+1}'; native=f'{name}.morale'
         tile.project.save(root/native)
-        preparation=export_machine(tile.project,root/f'{name}{extension}') if extension else None
-        manifest['tiles'].append({'id':name,'center':tile.center,'core':tile.core,'project':native,'machine':f'{name}{extension}' if extension else None,'stitches':sum(s.command=='stitch' for b in generate(tile.project) for s in b.stitches),'marks':tile.marks,'export_preparation':preparation})
+        blocks=generate(tile.project)
+        preparation=export_machine(tile.project,root/f'{name}{extension}',blocks) if extension else None
+        verification=None
+        if extension:
+            from .export_verify import verify_export,verification_text
+            try:
+                verification=verify_export(blocks,root/f'{name}{extension}')
+                manifest['notes'].append(verification_text(verification,f'{name}{extension}'))
+            except Exception as exc:
+                verification={'verified':False,'problems':[f'Could not check {name}{extension}: {exc}']}
+                manifest['notes'].append(verification['problems'][0])
+        manifest['tiles'].append({'id':name,'center':tile.center,'core':tile.core,'project':native,'machine':f'{name}{extension}' if extension else None,'stitches':sum(s.command=='stitch' for b in generate(tile.project) for s in b.stitches),'marks':tile.marks,'export_preparation':preparation,'verification':verification})
     image=overview(project,plan)
     if not image.save(str(root/'placement.png')): raise OSError('Could not write the hoop overview.')
     map_pdf(image,manifest,root/'placement.pdf')
@@ -101,11 +111,11 @@ def build_bundle(project,root,options):
             for mark in tile['marks']:
                 x,y=mark['position']; writer.writerow([mark['id'],tile['id'],f'{x:.6f}',f'{y:.6f}',f'{x-tile["center"][0]:.6f}',f'{y-tile["center"][1]:.6f}'])
     with (root/'placements.csv').open('w',encoding='utf-8',newline='') as stream:
-        writer=csv.writer(stream);writer.writerow(['Hoop','Source X mm','Source Y mm','Native stitches','Prepared stitches','Added needle positions','Machine file'])
+        writer=csv.writer(stream);writer.writerow(['Hoop','Source X mm','Source Y mm','Native stitches','Prepared stitches','Added needle positions','Machine file','Export check'])
         for tile in manifest['tiles']:
             preparation=tile['export_preparation']
             writer.writerow([tile['id'],f"{tile['center'][0]:.6f}",f"{tile['center'][1]:.6f}",tile['stitches'],
-                             preparation['prepared_stitches'] if preparation else '',preparation['subdivision_added_stitches'] if preparation else '',tile['machine'] or ''])
+                             preparation['prepared_stitches'] if preparation else '',preparation['subdivision_added_stitches'] if preparation else '',tile['machine'] or '', 'not exported' if tile['verification'] is None else 'checks passed' if tile['verification']['verified'] else 'review needed'])
     (root/'plan.json').write_text(json.dumps(manifest,indent=2),encoding='utf-8')
     (root/'README.txt').write_text('\n\n'.join(manifest['notes']),encoding='utf-8')
     return manifest

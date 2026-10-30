@@ -2,6 +2,7 @@
 from collections import Counter
 import base64
 import json
+import hashlib
 import math
 from pathlib import Path
 import sys
@@ -190,10 +191,20 @@ def worker_main(args):
     root=Path(output)
     try:
         before=Path(source).stat()
+        if before.st_size>20_000_000:raise ValueError('Artwork exceeds the 20 MB tracing limit.')
+        with open(source,'rb') as stream:source_digest=hashlib.file_digest(stream,'sha256').hexdigest()
         settings=json.loads(options)
+        expected_digest=settings.pop('expected_source_digest',None)
+        if expected_digest is not None and expected_digest!=source_digest:
+            raise ValueError('Artwork changed before tracing. Generate another preview to reset region corrections.')
+        expected_source=settings.pop('expected_source',None)
+        if expected_source is not None and expected_source!=[before.st_size,before.st_mtime_ns]:
+            raise ValueError('Artwork changed before tracing. Generate another preview to reset region corrections.')
         stitch_mode=settings.pop('stitch_mode','fill')
         stitch_settings=settings.pop('stitch_settings',{})
         overrides=settings.pop('stitch_overrides',{})
+        region_spacing=settings.pop('region_spacing',{})
+        region_angles=settings.pop('region_angles',{})
         seams=settings.pop('band_seams',{})
         branching=settings.pop('split_branches',False)
         branch_overlap=settings.pop('branch_overlap',0)
@@ -202,12 +213,15 @@ def worker_main(args):
         internal_trims=settings.pop('internal_trims',False)
         keep_reference=settings.pop('keep_reference',False)
         expand_strokes=settings.pop('expand_strokes',False)
+        render_svg=settings.pop('render_svg',False)
         remove_overlap=settings.pop('remove_overlap',False)
         overlap_allowance=settings.pop('overlap_allowance',.2)
         minimum_fill_area=settings.pop('minimum_fill_area',0)
         minimum_hole_area=settings.pop('minimum_hole_area',0)
         if type(remove_overlap) is not bool:raise ValueError('Invalid overlap removal setting.')
         if type(expand_strokes) is not bool:raise ValueError('Invalid SVG stroke expansion setting.')
+        if type(render_svg) is not bool:raise ValueError('Invalid SVG color tracing setting.')
+        if render_svg and Path(source).suffix.lower()!='.svg':raise ValueError('SVG color tracing requires SVG artwork.')
         if type(keep_reference) is not bool:raise ValueError('Invalid artwork reference setting.')
         if type(finishing) is not bool: raise ValueError('Invalid automatic finishing setting.')
         if type(branching) is not bool: raise ValueError('Invalid branch splitting setting.')
@@ -225,8 +239,12 @@ def worker_main(args):
         if type(group_colors) is not bool:raise ValueError('Invalid thread grouping setting.')
         if type(route) is not bool: raise ValueError('Invalid travel ordering setting.')
         if Path(source).suffix.lower()=='.svg':
-            from .vector_artwork import vector_artwork
-            project,image,stats=vector_artwork(source,expand_strokes=expand_strokes,**settings)
+            if render_svg:
+                from .svg_render import trace_svg_artwork
+                project,image,stats=trace_svg_artwork(source,**settings)
+            else:
+                from .vector_artwork import vector_artwork
+                project,image,stats=vector_artwork(source,expand_strokes=expand_strokes,**settings)
         else:project,image,stats=trace_image(source,**settings)
         if remove_overlap:
             from .trace_overlap import remove_covered_fill
@@ -238,15 +256,23 @@ def worker_main(args):
             from .branch_regions import split_branches
             project,stats['branch_splits']=split_branches(project,branch_overlap)
         from .auto_digitize import choose_stitches
-        project,stats['stitch_decisions']=choose_stitches(project,stitch_mode,overrides,seams)
+        project,stats['stitch_decisions']=choose_stitches(project,stitch_mode,overrides,seams,stitch_settings=stitch_settings)
         from .trace_stitch_settings import apply_stitch_settings
         project,stats['stitch_settings']=apply_stitch_settings(project,stitch_settings)
+        from .trace_stitch_settings import apply_region_spacing
+        project=apply_region_spacing(project,region_spacing)
+        for obj,decision in zip(project.objects,stats['stitch_decisions']):
+            decision['spacing_mm']=obj.spacing
         if route_fill:
             for obj in project.objects:
                 if obj.stitch_type=='fill':obj.route_fill=True
+        from .trace_stitch_settings import apply_region_angles
+        project=apply_region_angles(project,region_angles)
         if optimize_angles:
             from .trace_angles import choose_fill_angles
-            project,stats['fill_angles']=choose_fill_angles(project)
+            project,stats['fill_angles']=choose_fill_angles(project,locked_regions=[int(k) for k in region_angles])
+        for obj,decision in zip(project.objects,stats['stitch_decisions']):
+            decision['angle_degrees']=obj.angle
         from .trace_threads import match_trace_threads
         project,stats['thread_matches']=match_trace_threads(project,thread_catalog,color_metric,distinct_threads)
         stats['thread_colors']=len({obj.color.lower() for obj in project.objects})
@@ -315,6 +341,8 @@ def worker_main(args):
             (obj.kind=='path' and obj.points[0]==obj.points[-1])}
         create_preview(root/'trace.morale',root,marked_starts)
         info=json.loads((root/'preview.json').read_text())
+        info['source_fingerprint']=[before.st_size,before.st_mtime_ns]
+        info['source_digest']=source_digest
         info.update(project=project.dumps(),raster_png=raster_png,density_png=density_png,thread_density_png=thread_density_png,layers_png=layers_png,trace_svg=stats.pop('svg',''),trace_stats=stats)
         from .review_panels import aligned_panels
         from PySide6.QtSvg import QSvgRenderer
@@ -330,7 +358,9 @@ def worker_main(args):
         info['preview_frame_mm']=[frame.x(),frame.y(),frame.width(),frame.height()]
         after=Path(source).stat()
         if (before.st_size,before.st_mtime_ns)!=(after.st_size,after.st_mtime_ns):
-            raise ValueError('Image changed during tracing. Generate another preview.')
+            raise ValueError('Artwork changed during tracing. Generate another preview to reset region corrections.')
+        with open(source,'rb') as stream:after_digest=hashlib.file_digest(stream,'sha256').hexdigest()
+        if source_digest!=after_digest:raise ValueError('Artwork changed during tracing. Generate another preview to reset region corrections.')
         (root/'preview.json').write_text(json.dumps(info),encoding='utf-8')
         return 0
     except Exception as exc:

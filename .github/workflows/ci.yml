@@ -25,7 +25,7 @@ jobs:
           - {os: windows-latest, python: '3.12'}
           - {os: macos-latest, python: '3.12'}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: 55
     env:
       QT_QPA_PLATFORM: offscreen
       PYTHONFAULTHANDLER: '1'
@@ -46,3 +46,14 @@ jobs:
       - name: Report test results
         if: always()
         run: python scripts/ci_report.py --junit test-results.xml --progress test-progress.txt --label "${{ runner.os }} Python ${{ matrix.python }}"
+      - name: Build and test native application
+        if: matrix.python == '3.12'
+        timeout-minutes: 10
+        run: python packaging/build.py --bundle-only
+      - name: Preserve native application checks
+        if: always() && matrix.python == '3.12'
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-checks-${{ runner.os }}
+          path: artifacts/bundle-self-test/
+          if-no-files-found: ignore

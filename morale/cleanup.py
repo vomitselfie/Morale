@@ -2,7 +2,7 @@
 import math
 
 
-def short_stitch_cleanup(stitches, minimum, maximum, tolerance=.01):
+def short_stitch_cleanup(stitches, minimum, maximum, tolerance=.01, segment_allowed=None):
     """Keep controls, run endpoints, reversals, corners and bounded path error.
 
     This is conservative simplification, not a guarantee that every resulting
@@ -33,6 +33,8 @@ def short_stitch_cleanup(stitches, minimum, maximum, tolerance=.01):
                         t=max(0,min(1,((p[0]-a[0])*(c[0]-a[0])+(p[1]-a[1])*(c[1]-a[1]))/chord**2))
                         return math.dist(p,(a[0]+t*(c[0]-a[0]),a[1]+t*(c[1]-a[1])))<=tolerance
                     discard=all(near_segment(p) for p in [*removed,b])
+                    if discard and segment_allowed is not None:
+                        discard=segment_allowed(a,c)
         if discard:
             removed.append((current.x,current.y))
         else:

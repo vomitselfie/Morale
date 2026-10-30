@@ -47,3 +47,36 @@ def test_ascii_exports_are_byte_identical_and_upstream_helpers_unchanged(tmp_pat
     emb.write(to_pattern(source),str(reference),{'full_jump':False,'version':6} if extension=='.pes' else {'full_jump':False})
     assert actual.read_bytes()==reference.read_bytes()
     assert PesWriter.write_pes_string_8 is original_pes and Vp3Writer.vp3_write_string_8 is original_vp3
+
+
+@pytest.mark.parametrize('extension',['.pes','.pec'])
+def test_explicit_trim_and_untrimmed_travel_remain_distinct(tmp_path,extension):
+    from morale.stitch_edit import manual_object
+    from morale.model import Project,DesignObject
+    from morale.engine import generate
+    from morale.export_verify import control_positions
+    project=Project(objects=[manual_object(DesignObject(),[[0,0,'jump'],[1,0,'stitch'],[4,0,'jump'],[5,0,'stitch'],[5,0,'trim'],[8,0,'jump'],[9,0,'stitch']])])
+    before=project.dumps();path=tmp_path/('controls'+extension)
+    export_machine(project,path)
+    source=generate(project);decoded=generate(import_machine(path).project)
+    assert project.dumps()==before
+    assert control_positions(source)==control_positions(decoded)=={'stop':[],'trim':[(5.,0.)]}
+    assert sum(s.command=='jump' for b in decoded for s in b.stitches)>=3
+
+
+@pytest.mark.parametrize('extension,version',[('.pes',1),('.pes',6),('.pec',6)])
+@pytest.mark.parametrize('tail',[
+    [[1,0,'trim']],
+    [[1,0,'trim'],[2,0,'stitch']],
+    [[1,0,'trim'],[1,0,'stop'],[2,0,'stitch']],
+    [[1,0,'stop'],[1,0,'trim'],[2,0,'stitch']],
+])
+def test_pec_explicit_trim_boundaries_roundtrip(tmp_path,extension,version,tail):
+    from morale.stitch_edit import manual_object
+    from morale.export_verify import control_positions
+    project=Project(objects=[manual_object(DesignObject(),[[0,0,'jump'],[1,0,'stitch'],*tail])])
+    path=tmp_path/('boundary'+extension);export_machine(project,path,pes_version=version)
+    assert control_positions(generate(import_machine(path).project))==control_positions(generate(project))
+    def controls(blocks):
+        return [s.command for b in blocks for s in b.stitches if s.command in {'trim','stop'}]
+    assert controls(generate(import_machine(path).project))==controls(generate(project))

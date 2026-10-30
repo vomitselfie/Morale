@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 import io
 import math
+import re
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
@@ -28,10 +29,12 @@ def paint_order(value='normal'):
     return tuple(parts+[p for p in ('fill','stroke','markers') if p not in parts])
 
 
-def checked_xml(text, *, allow_dashes=False):
+def checked_xml(text, *, allow_dashes=False, paint_sink=None, layer_sink=None):
     if "<!DOCTYPE" in text.upper() or "<!ENTITY" in text.upper():
         raise ValueError("SVG document types and entity declarations are not supported.")
     root = ET.fromstring(text)
+    from .svg_styles import apply_styles
+    apply_styles(root)
     def tag(node):
         return node.tag.split("}")[-1]
     if tag(root) != "svg":
@@ -40,26 +43,42 @@ def checked_xml(text, *, allow_dashes=False):
     if len(nodes) > 10_000:
         raise ValueError("SVG exceeds 10,000 XML elements.")
     ids = {n.get("id"): n for n in nodes if n.get("id")}
-    allowed = {"svg", "g", "defs", "use", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon", "title", "desc", "metadata"}
+    allowed = {"svg", "g", "defs", "clipPath", "symbol", "use", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon", "title", "desc", "metadata"}
     visits = 0
+    viewport_clipping = False
+    rendering_nodes = {}
     def visit(node, stack):
-        nonlocal visits
+        nonlocal visits,viewport_clipping
         visits += 1
         if visits > 10_000 or len(stack) > 64:
             raise ValueError("SVG nesting or reference expansion exceeds the supported limit.")
         if id(node) in stack:
             raise ValueError("SVG contains a circular use reference.")
         if tag(node) in {"metadata", "title", "desc"}:
+            # Some parsers descend into metadata and interpret nested SVG shapes.
+            # These non-rendering subtrees must not become embroidery artwork.
+            node.clear()
             return
         if tag(node) not in allowed:
             raise ValueError(f"SVG element '{tag(node)}' is not supported. Convert text and special effects to plain paths first.")
+        rendering_nodes[id(node)] = node
+        # svgelements otherwise leaks a nested viewport's x/y into child
+        # rectangles and use instances whose positions default to zero.
+        if tag(node) in {"rect","use","svg"}:
+            for coordinate in ("x","y"):
+                if coordinate not in node.attrib:node.set(coordinate,"0")
         styles = dict(item.split(":", 1) for item in node.get("style", "").split(";") if ":" in item)
         properties = {**node.attrib, **{k.strip(): v.strip() for k, v in styles.items()}}
-        for key in ("clip-path", "mask", "filter", "marker-start", "marker-mid", "marker-end", "stroke-dasharray"):
+        if tag(node)=="svg" and node is not root:
+            viewport_clipping=True
+            if "overflow" not in properties:
+                node.set("overflow","hidden");properties["overflow"]="hidden"
+        for key in ("mask", "filter", "marker-start", "marker-mid", "marker-end", "stroke-dasharray"):
             if properties.get(key, "none") != "none" and not (key == "stroke-dasharray" and allow_dashes):
                 raise ValueError(f"SVG {key} needs to be converted to plain paths before import.")
         if "slice" in properties.get("preserveAspectRatio", "") or properties.get("overflow") in {"hidden", "scroll"}:
-            raise ValueError("SVG viewport clipping needs to be converted to plain paths before import.")
+            if tag(node)!="svg":raise ValueError("SVG viewport clipping is only supported on SVG viewport elements.")
+            viewport_clipping=True
         for key in ("fill", "stroke"):
             if "url(" in properties.get(key, "").lower():
                 raise ValueError("SVG gradient/pattern paint is not supported; use solid colors.")
@@ -71,7 +90,58 @@ def checked_xml(text, *, allow_dashes=False):
         for child in node:
             visit(child, stack + [id(node)])
     visit(root, [])
+    for node in list(root.iter()):
+        if tag(node)!="svg":continue
+        styles={key.strip():value.strip() for part in node.get('style','').split(';') if ':' in part for key,value in [part.split(':',1)]}
+        properties={**node.attrib,**styles}
+        zero=False
+        for dimension in ('width','height'):
+            raw=properties.get(dimension,'')
+            match=re.fullmatch(r'\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*(?:px|mm|cm|in|pt|pc|em|ex|%)?\s*',raw)
+            if match:
+                value=float(match[1])
+                if not math.isfinite(value) or value<0:raise ValueError('SVG viewport dimensions must be nonnegative and finite.')
+                zero=zero or value==0
+        if zero:
+            if node is root:raise ValueError('SVG page dimensions must be positive.')
+            ident=node.get('id');node.clear();node.tag='g';node.set('display','none')
+            if ident:node.set('id',ident)
+    if any(tag(node)=="symbol" for node in root.iter()):
+        from .svg_symbols import expand_symbols
+        expand_symbols(root)
+        return checked_xml(ET.tostring(root,encoding="unicode"),allow_dashes=allow_dashes,paint_sink=paint_sink,layer_sink=layer_sink)
+    # Group opacity composites the entire subtree. svgelements treats opacity
+    # as inherited, allowing a child's explicit value to revive invisible paint.
+    # A zero-opacity subtree is non-rendering regardless of child overrides.
     notices = []
+    from copy import deepcopy
+    clip_sources={}
+    for clip in root.iter():
+        if tag(clip)!="clipPath":continue
+        for child in clip.iter():
+            if tag(child)!="use":continue
+            href=child.get("href",child.get("{http://www.w3.org/1999/xlink}href",""))
+            target=ids.get(href[1:])
+            if target is not None and tag(target) in {"path","rect","circle","ellipse","line","polyline","polygon"}:
+                clip_sources[href[1:]]=deepcopy(target)
+    clip_nodes={id(child) for node in root.iter() if tag(node)=="clipPath" for child in node.iter()}
+    for node in rendering_nodes.values():
+        if id(node) in clip_nodes:continue
+        styles=dict(item.split(":",1) for item in node.get("style","").split(";") if ":" in item)
+        properties={**node.attrib,**{k.strip():v.strip() for k,v in styles.items()}}
+        for key in ('opacity','fill-opacity','stroke-opacity'):
+            if key not in properties:continue
+            raw=properties[key].strip()
+            try:value=float(raw[:-1])/100 if raw.endswith('%') else float(raw)
+            except ValueError as exc:raise ValueError(f'Unsupported SVG {key}: use a number or percentage.') from exc
+            if not math.isfinite(value):raise ValueError(f'SVG {key} must be finite.')
+            value=max(0.,min(1.,value))
+            if 0<value<1 and not (paint_sink is not None and (key in {'fill-opacity','stroke-opacity'} or layer_sink is not None)):
+                notices.append("Partial transparency is imported as opaque thread color.")
+            node.set(key,str(value))
+            node.set('style',node.get('style','')+f';{key}:{value}')
+            if key=='opacity' and value==0:
+                node.set('style',node.get('style','')+';display:none')
     viewbox = root.get("viewBox", "").replace(",", " ").split()
     for key, index, default in [("width", 2, "300"), ("height", 3, "150")]:
         if "%" in root.get(key, ""):
@@ -79,6 +149,10 @@ def checked_xml(text, *, allow_dashes=False):
         if not root.get(key):
             root.set(key, viewbox[index] if len(viewbox) == 4 else default)
             notices.append("Missing page dimensions use viewBox units (or a 300 × 150 px viewport) at 96 px/in.")
+    if paint_sink is not None or viewport_clipping or any(n.tag.split("}")[-1]=="clipPath" or "clip-path" in n.attrib or "clip-path" in n.get("style", "") for n in root.iter()):
+        from .svg_clipping import resolve_fill_clips
+        root=resolve_fill_clips(root,clip_sources,paint_sink=paint_sink,layer_sink=layer_sink)
+        notices.append("SVG viewport and clipping geometry was normalized before digitizing; clipped strokes become filled borders.")
     return ET.tostring(root, encoding="unicode"), notices
 
 

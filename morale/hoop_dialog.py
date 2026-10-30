@@ -75,7 +75,9 @@ class HoopDialog(QDialog):
             if image.isNull(): raise ValueError('Could not read the placement preview.')
             self.preview.setPixmap(image.scaled(700,400,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation))
             for tile in self.manifest['tiles']:
-                self.tiles.addItem(f"{tile['id']} · center {tile['center'][0]:.3f}, {tile['center'][1]:.3f} mm · {tile['stitches']:,} stitches")
+                check=tile.get('verification')
+                label='not exported' if not tile.get('machine') else 'not checked' if check is None else 'checks passed' if check.get('verified') is True else 'review needed'
+                self.tiles.addItem(f"{tile['id']} · center {tile['center'][0]:.3f}, {tile['center'][1]:.3f} mm · {tile['stitches']:,} stitches · {label}")
             self.status.setText(f"{len(self.manifest['tiles'])} placements. Bundle includes the source, tile projects, placement PDF/PNG, alignment coordinates and instructions. Review exported machine travel and seam starts/ends; no seam tie stitches are added.")
             self.save_button.setEnabled(True)
         except (OSError,ValueError,KeyError) as exc:

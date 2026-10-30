@@ -94,6 +94,24 @@ def reduce_travel(project,reverse=False):
             chosen=min(eligible,key=lambda i:(math.dist(previous,endpoints[i][0]),i))
             order.append(chosen);remaining.remove(chosen);previous=endpoints[chosen][1]
         index=end
+    refinement_evaluations=0
+    def refine(sequence):
+        nonlocal refinement_evaluations
+        sequence=list(sequence);score=cost(sequence)
+        for _ in range(4):
+            changed=False
+            for position in range(len(sequence)-1):
+                if refinement_evaluations>=2048:return sequence
+                a,b=sequence[position:position+2]
+                if locked(a) or locked(b) or not same_thread(project.objects[a],project.objects[b]) or overlap(a,b):continue
+                trial=list(sequence);trial[position:position+2]=[b,a]
+                refinement_evaluations+=1;candidate=cost(trial)
+                if candidate<score-1e-6:
+                    sequence=trial;score=candidate;changed=True
+            if not changed:break
+        return sequence
+    sequences=[original,order,refine(original),refine(order)]
+    order=min(sequences,key=cost)
     before=cost(original);after=cost(order)
     choices={};variants={}
     if reverse:
@@ -123,7 +141,7 @@ def reduce_travel(project,reverse=False):
                 plan[i]=selected;selected=links[selected]
             return score,plan
         candidates=[]
-        for sequence in (original,order):
+        for sequence in sequences:
             score,plan=directions(sequence);candidates.append((score,sequence,plan))
         after,order,choices=min(candidates,key=lambda candidate:candidate[0])
     status='improved';reason=''
@@ -143,5 +161,6 @@ def reduce_travel(project,reverse=False):
         result=deepcopy(project);order=original;after=before;choices={}
         status='rejected';reason=str(exc)
     return result,{'status':status,'reason':reason,'before_mm':before,'after_mm':after,'order':order,
+                   'refinement_evaluations':refinement_evaluations,
                    'moved_regions':sum(a!=b for a,b in zip(original,order)),
                    'reversed_regions':[i for i in order if choices.get(i)]}

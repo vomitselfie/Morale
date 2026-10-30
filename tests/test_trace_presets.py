@@ -118,3 +118,65 @@ def test_branch_join_overlap_preset_worker_option_and_legacy_default(dialog,tmp_
         legacy=target.preset_settings();legacy.pop('branch_overlap')
         target.apply_preset(legacy);assert target.branch_overlap.value()==0
     finally:target.close()
+
+
+def test_svg_color_mode_preset_restores_controls_and_legacy_vector_default(dialog,tmp_path):
+    source=TraceDialog('source.svg');target=TraceDialog('target.svg')
+    try:
+        source.render_svg.setChecked(True)
+        source.method.setCurrentIndex(source.method.findData('pixels'))
+        source.resolution.setCurrentIndex(source.resolution.findData(256))
+        path=tmp_path/'gradient.json';save_preset(path,source.preset_settings())
+        target.apply_preset(load_preset(path))
+        assert target.render_svg.isChecked() and target.method.isEnabled()
+        assert target.method.currentData()=='pixels' and not target.colors.isHidden()
+        target.runner.load=lambda _:None;target.generate()
+        assert target.runner.options['render_svg'] is True
+        legacy=target.preset_settings();legacy.pop('render_svg')
+        target.apply_preset(legacy)
+        assert not target.render_svg.isChecked() and not target.method.isEnabled()
+        assert target.colors.isHidden()
+        dialog.apply_preset(load_preset(path))
+        dialog.runner.load=lambda _:None;dialog.generate()
+        assert dialog.runner.options['render_svg'] is False
+        assert dialog.method.isEnabled() and dialog.method.currentData()=='pixels'
+    finally:source.close();target.close()
+
+
+def test_fabric_preset_maps_to_conversion_worker_without_changing_artwork(dialog):
+    dialog.width.setValue(73);dialog.colors.setValue(5)
+    dialog.stitch_settings['stitch_length'].setValue(3.1)
+    dialog.overrides={'0':'running'};dialog.seams={'0':30}
+    settings=dict(spacing=.55,pull_compensation=.3,underlay_inset=.7,underlay_spacing=2.3,underlay_style='edge_sparse')
+    dialog.apply_fabric_preset(settings)
+    assert dialog.width.value()==73 and dialog.colors.value()==5
+    assert dialog.custom_stitches.isChecked()
+    assert dialog.overrides=={'0':'running'} and dialog.seams=={'0':30}
+    dialog.runner.load=lambda _:None;dialog.generate()
+    stitches=dialog.runner.options['stitch_settings']
+    assert stitches['fill_spacing']==stitches['satin_spacing']==.55
+    assert stitches['fill_underlay']=='edge_sparse' and stitches['satin_underlay']=='center_zigzag'
+    assert stitches['stitch_length']==3.1 and stitches['pull_compensation']==.3
+    assert stitches['underlay_inset']==.7 and stitches['underlay_spacing']==2.3
+
+
+def test_invalid_fabric_settings_leave_conversion_unchanged(dialog):
+    before=dialog.preset_settings()
+    with pytest.raises(ValueError):dialog.apply_fabric_preset({'spacing':.5})
+    assert dialog.preset_settings()==before
+
+
+def test_fabric_change_retains_region_density_and_angle_corrections(dialog):
+    dialog.region_spacing={'0':.8};dialog.region_angles={'0':25}
+    dialog.project=object();dialog.review_snapshot=object()
+    dialog.apply_fabric_preset(dict(spacing=.5,pull_compensation=.2,underlay_inset=.5,underlay_spacing=2,underlay_style='edge'))
+    assert dialog.region_spacing=={'0':.8} and dialog.region_angles=={'0':25}
+    assert dialog.project is None and dialog.review_snapshot is None
+    assert all(control.isEnabled() for control in dialog.stitch_settings.values())
+
+
+def test_fabric_preset_can_disable_both_generated_underlays(dialog):
+    dialog.apply_fabric_preset(dict(spacing=.5,pull_compensation=.2,underlay_inset=.5,underlay_spacing=2,underlay_style='edge',underlay=False))
+    dialog.runner.load=lambda _:None;dialog.generate()
+    settings=dialog.runner.options['stitch_settings']
+    assert settings['underlay']==settings['fill_underlay']==settings['satin_underlay']=='off'

@@ -115,8 +115,16 @@ def column_pairs(obj):
     return (pairs,maximum),f'Unbranched column, maximum width {maximum:.2f} mm.'
 
 
-def choose_stitches(project,mode='auto',overrides=None,seams=None):
+def choose_stitches(project,mode='auto',overrides=None,seams=None,stitch_settings=None):
+    """Choose geometry using upcoming stitch settings to validate candidates.
+
+    Settings are applied by the worker after selection, including to retained
+    fill regions; this pass uses them only to check candidate feasibility.
+    """
     Project.loads(project.dumps())
+    from .trace_stitch_settings import apply_stitch_settings
+    stitch_settings={} if stitch_settings is None else stitch_settings
+    apply_stitch_settings(Project(),stitch_settings)
     if not isinstance(mode,str) or mode not in {'auto','fill'}: raise ValueError('Choose automatic stitches or all fill.')
     overrides={} if overrides is None else overrides
     if not isinstance(overrides,dict) or any(not isinstance(k,str) or not k.isdecimal() or int(k)>=len(project.objects)
@@ -130,7 +138,7 @@ def choose_stitches(project,mode='auto',overrides=None,seams=None):
     for index,source in enumerate(project.objects):
         requested=overrides.get(str(index),mode)
         seam=seams.get(str(index),0);closed=is_closed_band(source)
-        candidate=deepcopy(source); selected='fill'; reason='Fill selected.'; width=None
+        candidate=deepcopy(source); selected='fill'; reason='Fill selected.'; width=None;fallback=False
         fixed=source.stitch_type in {'running','triple'}
         if fixed:
             selected=source.stitch_type;reason='Vector stroke retained as a running outline; border width is not inferred.'
@@ -156,13 +164,16 @@ def choose_stitches(project,mode='auto',overrides=None,seams=None):
                 candidate.underlay=source.underlay and selected=='satin'
                 try:
                     Project.loads(Project(objects=[candidate]).dumps())
-                    generate(Project(objects=[candidate]))
-                except ValueError:
-                    candidate=deepcopy(source); selected='fill'; reason='Rail geometry needs manual correction; kept fill.'
+                    configured,_=apply_stitch_settings(Project(objects=[candidate]),stitch_settings)
+                    generate(configured)
+                except ValueError as exc:
+                    fallback=True
+                    candidate=deepcopy(source); selected='fill'; reason=f'Column cannot use the requested settings; kept fill. {exc}'
                 else:
                     if selected=='running': reason+=' Centerline running stitches replace the filled width.'
         result.objects[index]=candidate
         decisions.append({'region':index,'requested':requested,'selected':selected,'reason':reason,'width_mm':width,
-                          'closed_band':closed,'seam_percent':seam,'fixed_stitch':fixed})
+                          'closed_band':closed,'seam_percent':seam,'fixed_stitch':fixed,
+                          'fallback':fallback or (not fixed and requested in {'satin','running'} and selected!=requested)})
     Project.loads(result.dumps()); generate(result)
     return result,decisions

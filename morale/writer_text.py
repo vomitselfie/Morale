@@ -9,7 +9,7 @@ from functools import lru_cache
 import struct
 import types
 from pyembroidery import EmbPattern,PecWriter,PesWriter,Vp3Writer
-from pyembroidery.EmbConstant import COMMAND_MASK,STITCH,JUMP,COLOR_CHANGE,END
+from pyembroidery.EmbConstant import COMMAND_MASK,STITCH,JUMP,TRIM,COLOR_CHANGE,END
 
 
 def _adapter(module,replacements):
@@ -37,20 +37,21 @@ def _pec_encode(pattern,stream):
     # Based on pyembroidery PecWriter.pec_encode (MIT). Preserve its command
     # encoding, but do not add a zero-length stitch at the preceding jump end
     # solely because the next sewn segment has both X and Y displacement.
-    color_two=True;jumping=True;initial=True;x0=y0=0
+    color_two=True;jumping=True;x0=y0=0
     for x,y,encoded in pattern.stitches:
         command=encoded & COMMAND_MASK;dx=int(round(x-x0));dy=int(round(y-y0));x0+=dx;y0+=dy
         if command==STITCH:
             jumping=False;PecWriter.write_stitch(stream,dx,dy)
         elif command==JUMP:
             jumping=True
-            (PecWriter.write_jump if initial else PecWriter.write_trimjump)(stream,dx,dy)
+            PecWriter.write_jump(stream,dx,dy)
+        elif command==TRIM:
+            PecWriter.write_trimjump(stream,0,0)
         elif command==COLOR_CHANGE:
             if jumping:PecWriter.write_stitch(stream,0,0);jumping=False
             stream.write(bytes((254,176,2 if color_two else 1)));color_two=not color_two
         elif command==END:
             stream.write(bytes((255,)));break
-        initial=False
 
 
 @lru_cache(maxsize=1)
@@ -85,4 +86,7 @@ def writer(extension):
 
 
 def write(pattern,path,extension,settings=None):
+    if extension in {'.pes','.pec','.vp3'}:
+        from .writer_controls import preserve_explicit_trims
+        pattern=preserve_explicit_trims(pattern,preserve_pause_state=extension in {'.pes','.pec'})
     EmbPattern.write_embroidery(writer(extension),pattern,str(path),settings)

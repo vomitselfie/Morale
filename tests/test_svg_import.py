@@ -96,7 +96,7 @@ def test_bad_path_is_rejected_even_when_other_shapes_are_valid(tmp_path):
     ('<path fill="url(#gradient)" d="M0 0 H10 V10Z"/>', "paint"),
     ('<use href="https://example.com/art.svg#x"/>', "local"),
     ('<defs><g id="loop"><use href="#loop"/></g></defs>', "circular"),
-    ('<style>rect {fill:red}</style>', "style"),
+    ('<style>@import "external.css";</style>', "stylesheet"),
     ('<path stroke-dasharray="1 2" d="M0 0L10 10"/>', "stroke-dasharray"),
 ])
 def test_unsupported_or_external_content_rejected(tmp_path, body, match):
@@ -141,3 +141,53 @@ def test_svg_hole_exports_to_all_formats(tmp_path, extension):
     export_machine(Project(objects=result.objects), path)
     stitches = [s for b in generate(import_machine(path).project) for s in b.stitches if s.command == "stitch"]
     assert stitches and all(not(abs(s.x)<4.8 and abs(s.y)<4.8) for s in stitches)
+
+
+@pytest.mark.parametrize('attribute',['opacity="0"','style="opacity:0"'])
+def test_zero_opacity_group_cannot_be_revived_by_child(tmp_path,attribute):
+    result=import_svg(artwork(tmp_path,f'<g {attribute}><rect opacity="1" display="inline" width="40" height="40"/></g><rect id="visible" x="45" width="5" height="5"/>'))
+    assert len(result.objects)==1 and result.objects[0].name=='visible'
+
+
+@pytest.mark.parametrize('key',['opacity','fill-opacity','stroke-opacity'])
+def test_percentage_opacity_matches_fractional_value(tmp_path,key):
+    def read(value):
+        return import_svg(artwork(tmp_path,f'<rect width="10" height="10" fill="red" stroke="blue" style="{key}:{value}"/>'))
+    percent=read('50%');fraction=read('.5')
+    assert [(o.color,o.stitch_type,o.rings()) for o in percent.objects]==[(o.color,o.stitch_type,o.rings()) for o in fraction.objects]
+    assert percent.notices==fraction.notices
+
+
+@pytest.mark.parametrize('key',['fill-opacity','stroke-opacity'])
+def test_zero_percentage_paint_is_not_digitized(tmp_path,key):
+    result=import_svg(artwork(tmp_path,f'<rect width="10" height="10" fill="red" stroke="blue" {key}="0%"/>'))
+    assert len(result.objects)==1
+    assert result.objects[0].color==('#0000ff' if key=='fill-opacity' else '#ff0000')
+
+
+@pytest.mark.parametrize('value',['nan','inf','-inf','NaN%'])
+def test_nonfinite_opacity_is_rejected(tmp_path,value):
+    with pytest.raises(ValueError,match='finite'):
+        import_svg(artwork(tmp_path,f'<rect width="10" height="10" opacity="{value}"/>'))
+
+
+def test_opacity_normalization_ignores_metadata_subtrees(tmp_path):
+    result=import_svg(artwork(tmp_path,'<metadata><custom opacity="not paint"><rect fill-opacity="not paint"/></custom></metadata><rect id="visible" width="10" height="10"/>'))
+    assert len(result.objects)==1 and result.objects[0].name=='visible'
+
+
+def test_referenced_zero_opacity_group_stays_invisible(tmp_path):
+    result=import_svg(artwork(tmp_path,'<defs><g id="hidden" opacity="0%"><rect opacity="1" width="10" height="10"/></g></defs><use href="#hidden"/><rect id="visible" x="20" width="5" height="5"/>'))
+    assert len(result.objects)==1 and result.objects[0].name=='visible'
+
+
+@pytest.mark.parametrize('value,expected',[('-10%',0),('110%',1)])
+def test_opacity_clamps_to_visible_range(tmp_path,value,expected):
+    result=import_svg(artwork(tmp_path,f'<rect id="candidate" width="10" height="10" opacity="{value}"/><rect id="visible" x="20" width="5" height="5"/>'))
+    assert len(result.objects)==1+expected
+
+
+def test_group_transparency_notice_survives_child_override(tmp_path):
+    result=import_svg(artwork(tmp_path,'<g opacity="50%"><rect opacity="1" width="10" height="10" fill="red"/></g>'))
+    assert len(result.objects)==1 and result.objects[0].color=='#ff0000'
+    assert result.notices.count('Partial transparency is imported as opaque thread color.')==1

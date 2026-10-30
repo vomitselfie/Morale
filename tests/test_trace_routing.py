@@ -85,3 +85,25 @@ def test_complex_regions_keep_conservative_bbox_lock():
     assert len(generate(source)[0].stitches)>2000
     _,stats=reduce_travel(source)
     assert stats['order']==[0,1]
+
+
+def test_adjacent_refinement_improves_on_nearest_neighbor_route():
+    import math
+    positions=[(-10,30),(-20,-10),(0,10),(20,30),(-30,0)]
+    source=Project(objects=[DesignObject(kind='rectangle',x=x,y=y,width=2,height=2,underlay=False) for x,y in positions])
+    before=source.dumps();blocks=generate(source)
+    ends=[[(s.x,s.y) for s in b.stitches if s.command in {'stitch','jump'}] for b in blocks]
+    pending=set(range(len(ends)));previous=(0,0);greedy=0
+    while pending:
+        chosen=min(pending,key=lambda i:(math.dist(previous,ends[i][0]),i))
+        greedy+=math.dist(previous,ends[chosen][0]);previous=ends[chosen][-1];pending.remove(chosen)
+    result,report=reduce_travel(source)
+    assert report['after_mm']<greedy-10
+    assert 0<report['refinement_evaluations']<=2048
+    assert source.dumps()==before
+    assert {b.object_id:b for b in generate(result)}=={b.object_id:b for b in blocks}
+    previous=(0,0);measured=0
+    for block in generate(result):
+        points=[(s.x,s.y) for s in block.stitches if s.command in {'stitch','jump'}]
+        measured+=math.dist(previous,points[0]);previous=points[-1]
+    assert measured==pytest.approx(report['after_mm'])

@@ -43,3 +43,24 @@ def test_native_only_bundle_keeps_machine_counts_empty(tmp_path):
     assert all(tile['export_preparation'] is None for tile in manifest['tiles'])
     with (tmp_path/'placements.csv').open(newline='') as stream:rows=list(csv.DictReader(stream))
     assert rows and all(row['Prepared stitches']==row['Added needle positions']==row['Machine file']=='' for row in rows)
+
+
+def test_tile_verification_is_retained_in_manifest_csv_and_readme(tmp_path,monkeypatch):
+    import morale.export_verify as verifier
+    real=verifier.verify_export;calls=[]
+    def check(blocks,path):
+        result=real(blocks,path);calls.append(path)
+        if len(calls)==1:
+            result['verified']=False;result['problems']=['Test control discrepancy']
+        return result
+    monkeypatch.setattr(verifier,'verify_export',check)
+    manifest=build_bundle(source(),tmp_path,dict(width=40,height=40,margin=5,registration=False,extension='.pes'))
+    assert len(calls)==len(manifest['tiles'])
+    assert not manifest['tiles'][0]['verification']['verified']
+    assert all(t['verification']['verified'] for t in manifest['tiles'][1:])
+    saved=json.loads((tmp_path/'plan.json').read_text())
+    assert saved['tiles'][0]['verification']==manifest['tiles'][0]['verification']
+    with (tmp_path/'placements.csv').open(newline='') as stream:rows=list(csv.DictReader(stream))
+    assert rows[0]['Export check']=='review needed'
+    assert all(r['Export check']=='checks passed' for r in rows[1:])
+    assert 'Test control discrepancy' in (tmp_path/'README.txt').read_text()

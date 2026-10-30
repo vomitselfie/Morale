@@ -15,6 +15,8 @@ BUNDLE_ID = "io.github.vomitselfie.morale"
 
 datas = [(str(ROOT / name), ".") for name in ("LICENSE", "THIRD_PARTY_NOTICES.md", "CHANGELOG.md")]
 datas += collect_data_files("morale")
+datas += [(str(ROOT / "build" / "dependency-licenses"), "dependency-licenses")]
+datas += [(str(ROOT / "build" / "source-manifest.json"), ".")]
 
 a = Analysis(
     [str(ROOT / "run_morale.py")],

@@ -18,8 +18,18 @@ def worker_main(arguments):
     source, staged, version = arguments
     try:
         imported = import_machine(source)
-        preparation=export_machine(imported.project, staged, pes_version=int(version))
+        from .engine import generate
+        from .export_verify import verify_export, verification_text
+        blocks=generate(imported.project)
+        preparation=export_machine(imported.project, staged, blocks, pes_version=int(version))
         result = {"notes": imported.notes + [export_summary(preparation)] + export_notes(Path(staged).suffix.lower(), int(version))}
+        try:
+            check=verify_export(blocks,staged)
+            result["notes"].insert(0,verification_text(check,Path(source).stem+Path(staged).suffix))
+        except Exception as exc:
+            check={"verified":False,"problems":[f"Could not reopen/compare exported file: {exc}"]}
+            result["notes"].insert(0,check["problems"][0])
+        result["verification"]=check
         code = 0
     except Exception as exc:
         result = {"error": str(exc)}
@@ -31,6 +41,29 @@ def worker_main(arguments):
     except OSError:
         return 1
     return code
+
+
+def save_report(path,results):
+    """Replace a report atomically without overwriting batch inputs/outputs."""
+    import tempfile
+    path=Path(path)
+    protected=[Path(row[key]) for row in results for key in ('source','target') if row.get(key)]
+    def check_destination():
+        for source in protected:
+            if path.resolve()==source.resolve():raise ValueError('Choose a report destination separate from the design files.')
+            try:
+                if path.samefile(source):raise ValueError('The report destination refers to a design file.')
+            except FileNotFoundError:pass
+    check_destination()
+    text=json.dumps(results,indent=2,allow_nan=False)+'\n'
+    temporary=None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w',encoding='utf-8',newline='\n',dir=path.parent,suffix='.tmp',delete=False) as stream:
+            temporary=Path(stream.name);stream.write(text)
+        check_destination()
+        os.replace(temporary,path)
+    finally:
+        if temporary is not None:temporary.unlink(missing_ok=True)
 
 
 def publish(staged, target):
@@ -122,9 +155,10 @@ class ConversionQueue(QObject):
         self.progress.emit(0, len(self.jobs))
         QTimer.singleShot(0, self._next)
 
-    def _record(self, status, message="", notes=None):
+    def _record(self, status, message="", notes=None, verification=None):
         job = self.jobs[self.index]
         row = {"source": job["source"], "target": job["target"], "status": status, "message": message, "notes": notes or []}
+        if verification is not None:row["verification"]=verification
         self.results.append(row)
         self.index += 1
         self.result.emit(row)
@@ -205,7 +239,7 @@ class ConversionQueue(QObject):
         else:
             try:
                 publish(self.staged, self.jobs[self.index]["target"])
-                self._record("converted", notes=payload["notes"])
+                self._record("converted", notes=payload["notes"], verification=payload.get("verification"))
             except FileExistsError:
                 self._record("skipped", "Destination appeared during conversion; it was not replaced.")
             except OSError as exc:
@@ -227,6 +261,8 @@ def main():
     parser.add_argument("--output", required=True)
     parser.add_argument("--format", required=True, choices=sorted(ext[1:] for ext in EXPORT_FORMATS))
     parser.add_argument("--pes-version", type=int, choices=[1, 6], default=6)
+    parser.add_argument("--require-verification", action="store_true",
+                        help="Exit unsuccessfully if any export needs review or was not checked; exported files are retained.")
     args = parser.parse_args()
     app = QCoreApplication([])
     queue = ConversionQueue()
@@ -237,7 +273,9 @@ def main():
     except ValueError as exc:
         parser.error(str(exc))
     app.exec()
-    raise SystemExit(any(row["status"] != "converted" for row in queue.results))
+    raise SystemExit(any(row["status"] != "converted" or
+                         args.require_verification and row.get("verification",{}).get("verified") is not True
+                         for row in queue.results))
 
 
 if __name__ == "__main__":

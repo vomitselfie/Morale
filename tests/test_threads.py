@@ -75,3 +75,25 @@ def test_csv_contains_metadata_lengths_and_escapes_formulas():
 def test_bad_thread_metadata_rejected(metadata):
     with pytest.raises(ValueError):
         Project.loads(Project(objects=[DesignObject(thread=metadata)]).dumps())
+
+
+def test_failed_csv_write_preserves_previous_chart(tmp_path,monkeypatch):
+    import morale.threads as module
+    path=tmp_path/'threads.csv';path.write_text('previous report')
+    def fail(project,blocks,stream):
+        stream.write('partial report')
+        raise OSError('write failed')
+    monkeypatch.setattr(module,'write_chart',fail)
+    with pytest.raises(OSError):module.save_chart(Project(),[],path)
+    assert path.read_text()=='previous report'
+    assert list(tmp_path.iterdir())==[path]
+
+
+def test_saved_chart_keeps_existing_csv_content(tmp_path):
+    import io
+    from morale.threads import save_chart
+    project=Project(objects=[DesignObject(name='Été',thread={'description':'Blue, sky'})])
+    blocks=generate(project);expected=io.StringIO(newline='')
+    write_chart(project,blocks,expected)
+    path=tmp_path/'threads.csv';save_chart(project,blocks,path)
+    assert path.read_bytes()==expected.getvalue().encode('utf-8')

@@ -67,7 +67,7 @@ def create_preview(source,output,marked_starts=()):
         raise OSError('Could not write the temporary preview image.')
     info={'name':project.name,'objects':len(project.objects),'stitches':sum(s.command=='stitch' for b in blocks for s in b.stitches),
           'colors':len({b.color for b in blocks}),'width':right-left,'height':bottom-top,
-          'size':after.st_size,'mtime_ns':after.st_mtime_ns,'notes':notes}
+          'size':after.st_size,'mtime_ns':after.st_mtime_ns,'notes':notes,'project_notes':project.notes}
     (output/'preview.json').write_text(json.dumps(info,ensure_ascii=False),encoding='utf-8')
 
 

@@ -73,13 +73,17 @@ def test_schema_rejects_missing_or_invalid_baseline():
         with pytest.raises(ValueError):Project.loads(Project(objects=[obj]).dumps())
 
 
-def test_native_add_hide_and_edit_are_atomic_and_undoable(monkeypatch):
+@pytest.mark.parametrize('embroidery',[False,True])
+def test_native_add_hide_and_edit_are_atomic_and_undoable(monkeypatch,embroidery):
     from morale.app import MainWindow
     guide=DesignObject(kind='path',width=120,height=20,points=[[-.5,0],[0,-.5],[.5,0]],stitch_type='running')
     window=MainWindow();window.replace_project(Project(objects=[guide]));window.select_many([guide.id])
     before=window.project.dumps()
     def accept(dialog):
         assert dialog.layout_choice.currentData()=='path'
+        if embroidery:
+            dialog.source.setCurrentIndex(dialog.source.findData('embroidery'))
+            dialog.embroidery_font.setCurrentIndex(dialog.embroidery_font.findData('small_font'))
         dialog.text.setText('MOM');dialog.height.setValue(10);dialog.accept()
         return dialog.DialogCode.Accepted
     monkeypatch.setattr(LetteringDialog,'exec',accept)
@@ -89,7 +93,11 @@ def test_native_add_hide_and_edit_are_atomic_and_undoable(monkeypatch):
         assert len(window.project.objects)==2 and not window.project.objects[0].visible
         obj=window.project.objects[1];stored=world_baseline(obj)
         snapshot=window.project.dumps()
-        edited=letters('MAMA',previous=obj)
+        if embroidery:
+            from morale.embroidery_fonts import make_font_lettering
+            assert obj.lettering['embroidery_font']=='small_font'
+            edited=make_font_lettering('MAMA','small_font',10,previous=obj,layout='path')
+        else:edited=letters('MAMA',previous=obj)
         window.apply_lettering(edited,replace=True)
         window.undo();assert window.project.dumps()==snapshot
         window.project.objects[0].points=[[0,0],[.1,.1]]

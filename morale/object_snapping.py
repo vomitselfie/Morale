@@ -11,20 +11,22 @@ def object_bounds(obj):
     return QRectF(min(xs),min(ys),max(xs)-min(xs),max(ys)-min(ys))
 
 
-def snap_bounds(moving,targets,delta,tolerance):
-    if not moving or not targets:return QPointF(delta),(None,None)
+def snap_bounds(moving,targets,delta,tolerance,layout_guides=()):
+    if not moving or not (targets or layout_guides):return QPointF(delta),(None,None)
     left=min(r.left() for r in moving);right=max(r.right() for r in moving)
     top=min(r.top() for r in moving);bottom=max(r.bottom() for r in moving)
     axes=((left,(left+right)/2,right),(top,(top+bottom)/2,bottom))
     result=QPointF(delta);guides=[]
     for axis,anchors in enumerate(axes):
         offset=delta.x() if axis==0 else delta.y();choices=[]
+        target_values=[g['position'] for g in layout_guides if g['axis']==('x' if axis==0 else 'y')]
         for box in targets:
             edges=(box.left(),box.center().x(),box.right()) if axis==0 else (box.top(),box.center().y(),box.bottom())
-            for target in edges:
-                for anchor in anchors:
-                    adjustment=target-anchor-offset
-                    if abs(adjustment)<=tolerance:choices.append((abs(adjustment),target,adjustment))
+            target_values.extend(edges)
+        for target in target_values:
+            for anchor in anchors:
+                adjustment=target-anchor-offset
+                if abs(adjustment)<=tolerance:choices.append((abs(adjustment),target,adjustment))
         if choices:
             _,target,adjustment=min(choices)
             if axis==0:result.setX(offset+adjustment)

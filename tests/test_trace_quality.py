@@ -98,3 +98,20 @@ def test_effective_underlay_settings_and_legacy_reports():
     assert report['regions'][0]['underlay']['enabled']
     project.objects[0].underlay=False
     assert 'Underlay: Disabled.' in quality_text(conversion_quality(project))
+
+
+def test_angle_review_distinguishes_limits_and_accepts_legacy_reports():
+    report=conversion_quality(Project())
+    report['fill_angles']={'before_mm':10,'after_mm':8,'complete':False,'changes':[],
+        'evaluations':7,'generated_commands':200,'rejected_candidates':2,'stop_reason':'command_limit'}
+    text=quality_text(report)
+    assert 'generated-command limit reached' in text
+    assert 'Candidates evaluated: 7; generated commands: 200.' in text
+    assert 'output: 2.' in text
+    report['fill_angles']['stop_reason']='evaluation_limit'
+    assert 'candidate evaluation limit reached' in quality_text(report)
+    del report['fill_angles']['stop_reason']
+    assert 'work limit reached' in quality_text(report)
+    report['fill_angles']['complete']=True
+    assert 'Candidate angle search completed.' in quality_text(report)
+    assert 'Partial angle search' not in quality_text(report)

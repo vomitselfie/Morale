@@ -148,6 +148,14 @@ def run(output):
         hoop_root=root/'multihoop/bundle';plan=json.loads((hoop_root/'plan.json').read_text())
         if not (hoop_root/'placements.csv').exists() or not any(t['export_preparation']['subdivision_added_stitches'] for t in plan['tiles']):raise RuntimeError('Multi-hoop export counts are missing.')
         if any(t['stitches']!=t['export_preparation']['source_stitches'] for t in plan['tiles']):raise RuntimeError('Multi-hoop native counts disagree.')
+        for tile in plan['tiles']:
+            check=tile.get('verification')
+            if not isinstance(check,dict) or type(check.get('verified')) is not bool or not check.get('complete_path_comparison'):
+                raise RuntimeError('Multi-hoop reopened-file verification is missing or incomplete.')
+            if check['source_stitches']!=tile['stitches'] or 'controls' not in check:
+                raise RuntimeError('Multi-hoop verification does not describe the native tile.')
+            if not check['verified'] and not check['problems']:
+                raise RuntimeError('Multi-hoop review result has no explanation.')
         report['checks'].append('multihoop_export_counts')
         from .trace_dialog import TraceDialog
         from .trace_presets import save_preset,load_preset
@@ -185,6 +193,26 @@ def run(output):
             if len(library.thumbnails.cache)!=2 or any('unavailable' in library.results.item(i).toolTip() for i in range(2)):
                 raise RuntimeError('Bundled library thumbnails did not load.')
             report['checks'].append('visible_library_thumbnails')
+            library.search.setText('obsolete')
+            if library.results.count() or library.preview_path is not None:
+                raise RuntimeError('Bundled library retained stale query results.')
+            library.show_search(search)
+            if library.results.count():raise RuntimeError('Bundled library accepted a stale search response.')
+            library.thumbnail_button.setChecked(False)
+            library.search.clear()
+            from PySide6.QtCore import QEvent,Qt
+            from PySide6.QtGui import QKeyEvent
+            app.sendEvent(library.search,QKeyEvent(QEvent.Type.KeyPress,Qt.Key.Key_Return,Qt.KeyboardModifier.NoModifier))
+            app.sendEvent(library.search,QKeyEvent(QEvent.Type.KeyRelease,Qt.Key.Key_Return,Qt.KeyboardModifier.NoModifier))
+            deadline=time.monotonic()+20
+            while library.search_runner.path is not None and time.monotonic()<deadline:
+                app.processEvents();time.sleep(.01)
+            paths={library.results.item(i).text() for i in range(library.results.count())}
+            if not set(search['matches'])<=paths or 'saved.morale' not in paths:
+                raise RuntimeError('Bundled blank keyboard search missed supported designs.')
+            if not library.isVisible() or library.selected_path is not None:
+                raise RuntimeError('Bundled keyboard search activated an unrelated action.')
+            report['checks'].append('library_keyboard_browse_all_and_query_invalidation')
         finally:library.close()
         applique_source=DesignObject(kind='compound',width=20,height=20,
             contours=[[[-.5,-.5],[.5,-.5],[.5,.5],[-.5,.5]],[[-.2,-.2],[.2,-.2],[.2,.2],[-.2,.2]]])
@@ -213,6 +241,19 @@ def run(output):
         canvas.press=None;canvas.snap_guides=(None,None)
         report['checks'].append('snap_alignment_and_undo')
         from .lettering import LetteringDialog,make_lettering
+        from .embroidery_fonts import make_font_lettering,load_font,height_range
+        font=load_font('califragilistic')
+        if len(font['glyphs']['y']['pieces'])!=4:raise RuntimeError('Bundled Califragilistic glyph repair is missing.')
+        font_obj=make_font_lettering('yAÁ','califragilistic',height_range(font)[0],layout='curved',curve=60)
+        font_project=Project(objects=[font_obj]);font_snapshot=font_project.dumps()
+        if generate(font_project)!=generate(Project.loads(font_snapshot)):raise RuntimeError('Curved embroidery font roundtrip failed.')
+        font_dialog=LetteringDialog(obj=font_obj,parent=window)
+        try:
+            font_dialog.accept()
+            if font_dialog.candidate!=font_obj:raise RuntimeError('Unchanged embroidery font edit changed saved geometry.')
+        finally:font_dialog.close()
+        (root/'curved-embroidery-font.morale').write_text(font_snapshot,encoding='utf-8')
+        report['checks'].append('curved_embroidery_font_and_repaired_glyph')
         guide=DesignObject(kind='path',width=120,height=30,points=[[-.5,0],[0,-.5],[.5,0]],stitch_type='running')
         window.replace_project(Project(hoop_width=150,hoop_height=100,objects=[guide]));window.select(guide.id)
         before=window.project.dumps()
@@ -234,6 +275,192 @@ def run(output):
         if window.project.dumps()!=before:raise RuntimeError('Path lettering insertion Undo failed.')
         lettering.close()
         report['checks'].append('path_lettering_and_undo')
+        from PySide6.QtCore import QEvent,Qt
+        from PySide6.QtGui import QKeyEvent
+        from .export_verify import verify_export
+        def drawing_key(key):
+            for event_type in (QEvent.Type.KeyPress,QEvent.Type.KeyRelease):
+                app.sendEvent(window.canvas,QKeyEvent(event_type,key,Qt.KeyboardModifier.NoModifier))
+        for drawing_mode in ('polygon','satin'):
+            window.replace_project(Project())
+            before=window.project.dumps()
+            canvas=window.canvas;canvas.set_mode(drawing_mode)
+            canvas.snap_grid=True;canvas.grid_spacing=2
+            for key in (Qt.Key.Key_Home,Qt.Key.Key_Space,Qt.Key.Key_Right,Qt.Key.Key_Space,
+                        Qt.Key.Key_Down,Qt.Key.Key_Left,Qt.Key.Key_Space):drawing_key(key)
+            if drawing_mode=='satin':
+                drawing_key(Qt.Key.Key_Return)
+                if window.project.objects or len(canvas.vertices)!=3:
+                    raise RuntimeError('Bundled keyboard satin accepted an incomplete rail pair.')
+                drawing_key(Qt.Key.Key_Right);drawing_key(Qt.Key.Key_Space)
+            drawing_key(Qt.Key.Key_Return)
+            if len(window.project.objects)!=1 or window.project.objects[0].kind!=drawing_mode:
+                raise RuntimeError('Bundled keyboard drawing did not create the requested object.')
+            keyboard_saved=window.project.dumps();keyboard_blocks=generate(window.project)
+            if not keyboard_blocks or generate(Project.loads(keyboard_saved))!=keyboard_blocks:
+                raise RuntimeError('Bundled keyboard drawing lost stitches after project reload.')
+            (root/f'keyboard-{drawing_mode}.morale').write_text(keyboard_saved,encoding='utf-8')
+            for extension in ('pes','exp'):
+                path=root/f'keyboard-{drawing_mode}.{extension}'
+                export_machine(window.project,path,keyboard_blocks)
+                verification=verify_export(keyboard_blocks,path)
+                if not verification['complete_path_comparison'] or verification['bounds_delta_mm']>.3 or verification['problems']:
+                    raise RuntimeError(f'Bundled keyboard {drawing_mode} {extension} export failed: {verification}')
+            window.undo()
+            if window.project.dumps()!=before:raise RuntimeError('Bundled keyboard drawing Undo failed.')
+            window.redo()
+            if window.project.dumps()!=keyboard_saved:raise RuntimeError('Bundled keyboard drawing Redo failed.')
+        report['checks'].append('keyboard_drawing_roundtrip_exports_and_history')
+        from PySide6.QtCore import QPointF
+        from PySide6.QtGui import QMouseEvent
+        window.replace_project(Project(objects=[DesignObject(kind='rectangle',width=20,height=15)]))
+        canvas=window.canvas;canvas.set_mode('select');canvas.show_rulers=True;canvas.snap_grid=False
+        unguided_blocks=generate(window.project)
+        def guide_mouse(kind,point):
+            app.sendEvent(canvas,QMouseEvent(kind,point,canvas.mapToGlobal(point),
+                Qt.MouseButton.LeftButton,
+                Qt.MouseButton.NoButton if kind==QEvent.Type.MouseButtonRelease else Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier))
+        for axis,start in (('x',QPointF(12,100)),('y',QPointF(100,12))):
+            end=QPointF(canvas.width()/2+30,canvas.height()/2+30)
+            world=canvas.world(end);expected=world.x() if axis=='x' else world.y()
+            guide_mouse(QEvent.Type.MouseButtonPress,start)
+            if canvas.guide_draft is None or canvas.grab().isNull():
+                raise RuntimeError('Bundled ruler guide preview failed.')
+            guide_mouse(QEvent.Type.MouseButtonRelease,end)
+            if window.project.guides[-1]!={'axis':axis,'position':expected}:
+                raise RuntimeError('Bundled ruler drag produced the wrong guide.')
+        guided_snapshot=window.project.dumps()
+        window.file_path=root/'layout-guides.morale';window.save()
+        window.open_path(window.file_path)
+        if window.project.dumps()!=guided_snapshot or generate(window.project)!=unguided_blocks:
+            raise RuntimeError('Bundled guide save/reopen changed guides or stitches.')
+        before=window.project.dumps()
+        window.add_layout_guide('x',-17.5);after=window.project.dumps()
+        window.undo()
+        if window.project.dumps()!=before:raise RuntimeError('Bundled guide Undo failed.')
+        window.redo()
+        if window.project.dumps()!=after:raise RuntimeError('Bundled guide Redo failed.')
+        guide_mouse(QEvent.Type.MouseButtonPress,QPointF(12,100))
+        drawing_key(Qt.Key.Key_Escape)
+        guide_mouse(QEvent.Type.MouseButtonRelease,QPointF(100,100))
+        if window.project.dumps()!=after or canvas.guide_draft is not None:
+            raise RuntimeError('Bundled guide cancellation changed the project.')
+        report['checks'].append('layout_guides_native_history_and_save')
+        ripple=DesignObject(kind='compound',width=30,height=30,underlay=False,spacing=1,
+            contours=[[[-.5,-.5],[.5,-.5],[.5,.5],[-.5,.5]],
+                      [[-.2,-.2],[.2,-.2],[.2,.2],[-.2,.2]]])
+        window.replace_project(Project(objects=[ripple]));window.select(ripple.id)
+        window.stitch_type.setCurrentIndex(window.stitch_type.findData('ripple'))
+        before=window.project.dumps()
+        window.fields['ripple_center_x'].setValue(-60)
+        changed=window.project.dumps()
+        if window.project.objects[0].ripple_center_x!=-60 or changed==before:
+            raise RuntimeError('Bundled ripple center control failed.')
+        window.undo()
+        if window.project.dumps()!=before:raise RuntimeError('Bundled ripple center Undo failed.')
+        window.redo()
+        if window.project.dumps()!=changed:raise RuntimeError('Bundled ripple center Redo failed.')
+        ripple_blocks=generate(window.project)
+        if not ripple_blocks or generate(Project.loads(changed))!=ripple_blocks:
+            raise RuntimeError('Bundled ripple project reload changed stitches.')
+        from .pattern_fill import RegionClip
+        region=RegionClip(window.project.objects[0].rings())
+        for a,b in zip(ripple_blocks[0].stitches,ripple_blocks[0].stitches[1:]):
+            if b.command=='stitch':
+                for t in (.1,.5,.9):
+                    if not region.inside((a.x+t*(b.x-a.x),a.y+t*(b.y-a.y))):
+                        raise RuntimeError('Bundled ripple stitches crossed the outline or cutout.')
+        (root/'ripple.morale').write_text(changed,encoding='utf-8')
+        for extension in ('pes','exp'):
+            path=root/f'ripple.{extension}'
+            export_machine(window.project,path,ripple_blocks)
+            verification=verify_export(ripple_blocks,path)
+            if not verification['complete_path_comparison'] or verification['bounds_delta_mm']>.3 or verification['problems']:
+                raise RuntimeError(f'Bundled ripple {extension} export failed: {verification}')
+        window.canvas.set_design(window.project,ripple_blocks);app.processEvents()
+        if not window.grab().save(str(root/'ripple.png')):raise RuntimeError('Bundled ripple screenshot failed.')
+        report['checks'].append('ripple_center_edit_cutout_exports_and_history')
+        from .coupon_worker import export_coupon
+        from PySide6.QtCore import QTimer
+        ticks=[];heartbeat=QTimer();heartbeat.timeout.connect(lambda:ticks.append(1));heartbeat.start(10)
+        pack_root=root/'ripple-sewout-pack'
+        try:pack_report=export_coupon('ripple-spacing',pack_root,window)
+        finally:heartbeat.stop()
+        if not ticks or not pack_report or pack_report.get('physical_sewouts') is not False:
+            raise RuntimeError('Bundled coupon worker did not complete with a responsive event loop.')
+        if (pack_root/'INCOMPLETE.txt').exists():raise RuntimeError('Bundled coupon worker left an incomplete pack.')
+        for filename in ('ripple-spacing.morale','placement.pdf','evaluation.pdf','metadata.json','evaluation.json','README.txt'):
+            if not (pack_root/filename).is_file():raise RuntimeError(f'Bundled coupon pack omitted {filename}.')
+        if not all(check.get('verified') for check in pack_report['export_verification'].values()):
+            raise RuntimeError('Bundled ripple coupon exports failed software verification.')
+        report['checks'].append('responsive_sewout_pack_worker')
+        from .fabric_dialog import FabricDialog
+        from .fabric_presets import save_preset,load_preset
+        fabric=FabricDialog(window)
+        try:
+            fabric.profile.setCurrentText('Stretch knit')
+            fabric.fields['pull_compensation'].setValue(.35)
+            settings=fabric.settings()
+            save_preset(root/'custom.morale-fabric.json',settings)
+            restored=load_preset(root/'custom.morale-fabric.json')
+            if restored!=settings:raise RuntimeError('Bundled fabric preset round-trip failed.')
+            fabric_object=DesignObject(kind='rectangle',width=20,height=20)
+            window.replace_project(Project(objects=[fabric_object]));window.select(fabric_object.id)
+            before=window.project.dumps()
+            window.apply_fabric_settings(restored)
+            after=window.project.dumps()
+            if after==before or window.project.objects[0].pull_compensation!=.35:
+                raise RuntimeError('Bundled fabric application did not update object settings.')
+            if generate(Project.loads(after))!=generate(window.project):
+                raise RuntimeError('Bundled fabric project round-trip changed stitches.')
+            (root/'fabric.morale').write_text(after,encoding='utf-8')
+            window.undo()
+            if window.project.dumps()!=before:raise RuntimeError('Bundled fabric Undo failed.')
+            window.redo()
+            if window.project.dumps()!=after:raise RuntimeError('Bundled fabric Redo failed.')
+        finally:fabric.close()
+        report['checks'].append('fabric_preset_application_and_undo')
+        fabric_source=root/'fabric-art.svg'
+        fabric_source.write_text('<svg width="60" height="40"><rect x="5" y="5" width="20" height="25" fill="red"/><rect x="40" y="5" width="3" height="25" fill="blue"/></svg>')
+        fabric_trace=TraceDialog(str(fabric_source),window)
+        try:
+            fabric_trace.width.setValue(60)
+            fabric_trace.apply_fabric_preset(restored)
+            fabric_trace.runner.load=lambda _:None
+            fabric_trace.generate()
+            worker('--trace-worker',fabric_source,root/'fabric-conversion',fabric_trace.runner.options)
+            converted=Project.loads(json.loads((root/'fabric-conversion/preview.json').read_text())['project'])
+            if {obj.stitch_type for obj in converted.objects}!={'fill','satin'}:
+                raise RuntimeError('Bundled fabric conversion lost fill/satin selection.')
+            for obj in converted.objects:
+                expected='edge_sparse' if obj.stitch_type=='fill' else 'center_zigzag'
+                if obj.spacing!=restored['spacing'] or obj.pull_compensation!=.35 or not obj.underlay or obj.underlay_style!=expected:
+                    raise RuntimeError('Bundled fabric conversion lost stitch settings.')
+        finally:fabric_trace.close()
+        report['checks'].append('fabric_preset_artwork_conversion')
+        window.saved=window.project.dumps()
+        window.load_fabric_sample()
+        if window.project.name!='Morale coupon: Fabric profile comparison' or len(window.project.objects)!=9:
+            raise RuntimeError('Bundled native fabric coupon loading failed.')
+        coupon_blocks=generate(window.project)
+        if not coupon_blocks or window.project.hoop_width!=100 or window.project.hoop_height!=100:
+            raise RuntimeError('Bundled fabric coupon geometry is invalid.')
+        (root/'fabric-coupon.morale').write_text(window.project.dumps(),encoding='utf-8')
+        report['checks'].append('native_sewout_coupon_loading')
+        from .coupons import build_project as coupon_project,evaluation_pdf
+        _,coupon_tests,coupon_title,coupon_guidance=coupon_project('fabric-profiles')
+        evaluation_pdf(root/'fabric-evaluation.pdf',coupon_title,coupon_tests,coupon_guidance)
+        evaluation_bytes=(root/'fabric-evaluation.pdf').read_bytes()
+        if not evaluation_bytes.startswith(b'%PDF-') or b'%%EOF' not in evaluation_bytes[-1024:]:
+            raise RuntimeError('Bundled sewout evaluation PDF is incomplete.')
+        report['checks'].append('sewout_evaluation_pdf')
+        from .coupons import project_evaluation_pdf
+        project_evaluation_pdf(window.project,root/'current-design-worksheet.pdf')
+        worksheet=(root/'current-design-worksheet.pdf').read_bytes()
+        if not worksheet.startswith(b'%PDF-') or b'%%EOF' not in worksheet[-1024:]:
+            raise RuntimeError('Bundled current-design worksheet is incomplete.')
+        report['checks'].append('current_design_sewout_worksheet')
         dash_source=root/'dashes.svg'
         dash_source.write_text('<svg width="40" height="40"><path d="M4 20 H36" fill="none" stroke="red" stroke-width="2" stroke-dasharray=".5 .5" pathLength="4"/><path d="M4 30 H36" fill="none" stroke="blue" stroke-width="2" stroke-dasharray="0 8" stroke-linecap="round"/></svg>')
         worker('--trace-worker',dash_source,root/'dashes',dict(width=40,expand_strokes=True,stitch_mode='fill'))
@@ -244,6 +471,113 @@ def run(output):
         if not dash_shape.contains(QPointF(-15,0)) or dash_shape.contains(QPointF(-10,0)) or not dash_shape.contains(QPointF(-16,10)):
             raise RuntimeError('Bundled dashed SVG lost a dash, gap or round dot.')
         report['checks'].append('dashed_svg_conversion')
+        (root/'clipped.svg').write_text('<svg width="100" height="100"><defs><clipPath id="c" clipPathUnits="objectBoundingBox"><path clip-rule="evenodd" d="M0 0H1V1H0Z M.25 .25H.75V.75H.25Z"/></clipPath></defs><rect x="20" y="20" width="60" height="60" fill="red" clip-path="url(#c)"/></svg>')
+        worker('--trace-worker',root/'clipped.svg',root/'clipped',{'width':100,'stitch_mode':'fill'})
+        clipped_info=json.loads((root/'clipped/preview.json').read_text())
+        clipped_project=Project.loads(clipped_info['project'])
+        if len(clipped_project.objects)!=1 or len(clipped_project.objects[0].contours)!=2:
+            raise RuntimeError('Bundled clipping lost its fill or cutout.')
+        if abs(clipped_project.objects[0].width-60)>.01:
+            raise RuntimeError('Bundled clipping changed the artwork size.')
+        clipped_blocks=generate(clipped_project)
+        if clipped_blocks!=generate(Project.loads(clipped_project.dumps())):
+            raise RuntimeError('Clipped artwork changed after save/reopen.')
+        if any(-14.99<s.x<14.99 and -14.99<s.y<14.99 for block in clipped_blocks for s in block.stitches if s.command=='stitch'):
+            raise RuntimeError('Bundled clipping generated needle penetrations in the cutout.')
+        (root/'clipped.morale').write_text(clipped_project.dumps())
+        report['checks'].append('clipped_svg_conversion_and_cutout')
+        (root/'symbols.svg').write_text('<svg width="100" height="100"><defs><symbol id="s" viewBox="0 0 10 10"><defs><clipPath id="half"><rect width="50%" height="100%"/></clipPath></defs><rect width="10" height="10" clip-path="url(#half)"/></symbol></defs><use href="#s" x="10" y="10" width="20" height="20" fill="red"/><use href="#s" x="50" y="50" width="40" height="40" fill="blue"/></svg>')
+        worker('--trace-worker',root/'symbols.svg',root/'symbols',{'width':100,'stitch_mode':'fill'})
+        symbol_info=json.loads((root/'symbols/preview.json').read_text())
+        symbol_project=Project.loads(symbol_info['project'])
+        if len(symbol_project.objects)!=2 or [o.color for o in symbol_project.objects]!=['#ff0000','#0000ff']:
+            raise RuntimeError('Bundled symbols lost an instance or its paint.')
+        if any(abs(obj.width-width)>.01 for obj,width in zip(symbol_project.objects,(10,20))):
+            raise RuntimeError('Bundled symbol clipping changed instance sizes.')
+        if generate(symbol_project)!=generate(Project.loads(symbol_project.dumps())):
+            raise RuntimeError('Symbol stitches changed after save/reopen.')
+        (root/'symbols.morale').write_text(symbol_project.dumps())
+        report['checks'].append('svg_symbols_and_local_clips')
+        (root/'gradient.svg').write_text('<svg width="100" height="100"><defs><linearGradient id="g"><stop stop-color="red"/><stop offset="1" stop-color="blue"/></linearGradient><clipPath id="c"><rect width="40" height="80"/></clipPath></defs><rect width="80" height="80" fill="url(#g)" clip-path="url(#c)"/></svg>')
+        worker('--trace-worker',root/'gradient.svg',root/'gradient',dict(render_svg=True,width=100,colors=3,resolution=64,method='smooth',ignore_white=False,stitch_mode='fill'))
+        gradient_info=json.loads((root/'gradient/preview.json').read_text())
+        gradient_project=Project.loads(gradient_info['project'])
+        if gradient_info['trace_stats'].get('source_kind')!='rendered_svg' or len(gradient_project.objects)<2:
+            raise RuntimeError('Bundled gradient conversion lost its editable color regions.')
+        gradient_blocks=generate(gradient_project)
+        if not gradient_blocks or gradient_blocks!=generate(Project.loads(gradient_project.dumps())):
+            raise RuntimeError('Gradient stitches changed after save/reopen.')
+        if any(s.x>-8 for block in gradient_blocks for s in block.stitches if s.command=='stitch'):
+            raise RuntimeError('Bundled gradient conversion stitched outside its clip.')
+        (root/'gradient.morale').write_text(gradient_project.dumps())
+        report['checks'].append('svg_gradient_color_conversion')
+        (root/'masked.svg').write_text('<svg width="100" height="100"><defs><mask id="m" maskContentUnits="objectBoundingBox"><rect width=".5" height="1" fill="white"/></mask></defs><rect x="10" y="10" width="80" height="80" fill="red" mask="url(#m)"/></svg>')
+        worker('--trace-worker',root/'masked.svg',root/'masked',dict(render_svg=True,width=100,colors=2,resolution=128,method='smooth',ignore_white=False,stitch_mode='fill'))
+        masked_info=json.loads((root/'masked/preview.json').read_text())
+        masked_project=Project.loads(masked_info['project'])
+        if len(masked_project.objects)!=1 or abs(masked_project.objects[0].width-40)>.5:
+            raise RuntimeError('Bundled SVG mask did not retain the visible half.')
+        masked_blocks=generate(masked_project)
+        if not masked_blocks or any(s.x>.5 for block in masked_blocks for s in block.stitches if s.command=='stitch'):
+            raise RuntimeError('Bundled SVG mask stitched into the hidden half.')
+        (root/'masked.morale').write_text(masked_project.dumps())
+        report['checks'].append('svg_masked_color_conversion')
+        (root/'styled.svg').write_text('<svg width="100" height="100"><style>.paint {fill:blue} #art {fill:red} #m rect {fill:white}</style><defs><mask id="m" maskContentUnits="objectBoundingBox"><rect width=".5" height="1"/></mask></defs><rect id="art" class="paint" x="10" y="10" width="80" height="80" mask="url(#m)"/></svg>')
+        worker('--trace-worker',root/'styled.svg',root/'styled',dict(render_svg=True,width=100,colors=2,resolution=128,method='smooth',ignore_white=False,stitch_mode='fill'))
+        styled_info=json.loads((root/'styled/preview.json').read_text())
+        styled_project=Project.loads(styled_info['project'])
+        if len(styled_project.objects)!=1 or styled_project.objects[0].color!='#ff0000' or abs(styled_project.objects[0].width-40)>.5:
+            raise RuntimeError('Bundled SVG stylesheet lost selector precedence or mask styles.')
+        (root/'styled.morale').write_text(styled_project.dumps())
+        report['checks'].append('svg_stylesheet_conversion')
+
+        variable_source=root/'variables.svg'
+        variable_source.write_text('<svg width="100" height="50" style="--paint:red;--edge:blue"><path fill="var(--paint)" fill-rule="evenodd" d="M5 5H35V35H5Z M15 15H25V25H15Z"/><g style="--paint:var(--edge)"><rect fill="var(--missing,var(--paint))" x="65" y="5" width="30" height="30"/></g></svg>')
+        for mode in ('direct','rendered'):
+            output=root/f'variables-{mode}'
+            worker('--trace-worker',variable_source,output,dict(render_svg=mode=='rendered',width=100,
+                colors=2,resolution=256,method='smooth',ignore_white=False,stitch_mode='fill'))
+            variable_project=Project.loads(json.loads((output/'preview.json').read_text())['project'])
+            objects=sorted(variable_project.objects,key=lambda obj:obj.x)
+            if len(objects)!=2 or len(objects[0].rings())!=2:
+                raise RuntimeError('Bundled variable artwork lost a region or cutout.')
+            for obj,expected in zip(objects,((255,0,0),(0,0,255))):
+                if any(abs(a-b)>(12 if mode=='rendered' else 0) for a,b in zip(QColor(obj.color).getRgb()[:3],expected)):
+                    raise RuntimeError('Bundled variable artwork changed its palette.')
+            variable_blocks=generate(variable_project)
+            snapshot=variable_project.dumps()
+            if generate(Project.loads(snapshot))!=variable_blocks:raise RuntimeError('Bundled variable project reload changed stitches.')
+            (root/f'variables-{mode}.morale').write_text(snapshot)
+            for extension in ('pes','exp'):
+                path=root/f'variables-{mode}.{extension}'
+                export_machine(variable_project,path,variable_blocks)
+                check=verify_export(variable_blocks,path)
+                if not check['complete_path_comparison'] or check['bounds_delta_mm']>.3 or check['problems']:
+                    raise RuntimeError(f'Bundled variable artwork export failed: {check}')
+        report['checks'].append('svg_variable_paints_conversion_and_exports')
+
+        (root/'modern-colors.svg').write_text('<svg width="100" height="50"><rect width="40" height="40" style="fill:rgb(255 0 0) ! /* priority */ important;fill:blue"/><rect x="60" width="40" height="40" fill="hsl(240 100% 50%)"/></svg>')
+        worker('--trace-worker',root/'modern-colors.svg',root/'modern-colors',dict(render_svg=True,width=100,colors=2,resolution=256,method='smooth',ignore_white=False,stitch_mode='fill'))
+        modern_info=json.loads((root/'modern-colors/preview.json').read_text())
+        modern_project=Project.loads(modern_info['project'])
+        modern_objects=sorted(modern_project.objects,key=lambda obj:obj.x)
+        if len(modern_objects)!=2:
+            raise RuntimeError('Bundled modern SVG color conversion lost regions.')
+        for obj,expected in zip(modern_objects,((255,0,0),(0,0,255))):
+            if any(abs(a-b)>2 for a,b in zip(QColor(obj.color).getRgb()[:3],expected)) or abs(obj.width-40)>.5:
+                raise RuntimeError('Bundled modern SVG color conversion changed colors or dimensions.')
+        (root/'modern-colors.morale').write_text(modern_project.dumps())
+        report['checks'].append('svg_modern_color_conversion')
+        from .svg_render import render_svg_artwork
+        gradient_pixels,_=render_svg_artwork('<svg width="100" height="100"><defs color="red"><linearGradient id="hard"><stop stop-color="currentColor"/><stop offset=".5" stop-color="currentColor"/><stop offset=".5" stop-color="blue"/><stop offset="1" stop-color="blue"/></linearGradient><linearGradient id="fade"><stop stop-color="red" stop-opacity="0"/><stop offset="1" stop-color="blue"/></linearGradient></defs><rect width="100" height="40" fill="url(#hard)"/><rect y="60" width="100" height="40" fill="url(#fade)"/></svg>',resolution=100)
+        if gradient_pixels.pixelColor(20,20).getRgb()!=(255,0,0,255) or gradient_pixels.pixelColor(80,20).getRgb()!=(0,0,255,255):
+            raise RuntimeError('Bundled gradient styles or hard transitions changed.')
+        red,green,blue,alpha=gradient_pixels.pixelColor(50,80).getRgb()
+        if not (124<=red<=130 and green==0 and 125<=blue<=132 and 126<=alpha<=132):
+            raise RuntimeError('Bundled transparent gradient color interpolation changed.')
+        if not gradient_pixels.save(str(root/'gradient-rendering.png')):
+            raise RuntimeError('Could not save gradient rendering evidence.')
+        report['checks'].append('svg_gradient_styles_and_interpolation')
         order_source=root/'paint-order.svg'
         order_source.write_text('<svg width="40" height="40"><rect x="10" y="10" width="20" height="20" fill="red" stroke="blue" stroke-width="4" paint-order="stroke"/></svg>')
         worker('--trace-worker',order_source,root/'paint-order',dict(width=40,expand_strokes=True,stitch_mode='fill',remove_overlap=True,overlap_allowance=0))
@@ -319,6 +653,29 @@ def run(output):
         window.undo()
         if window.project.dumps()!=before:raise RuntimeError('Perceptual thread assignment Undo failed.')
         report['checks'].append('perceptual_thread_assignment_and_undo')
+        boundary=Project(objects=[
+            DesignObject(kind='stitches',stitch_type='manual',width=10,height=10,color='#ff0000',
+                stitch_data=[[0,0,'jump'],[.2,0,'stitch']]),
+            DesignObject(kind='stitches',stitch_type='manual',width=10,height=10,color='#0000ff',
+                stitch_data=[[.2,0,'jump'],[.2,0,'trim'],[.3,0,'jump'],[.4,0,'stitch']])])
+        boundary_blocks=generate(boundary);boundary_reports={}
+        boundary_root=root/'boundary-trims';boundary_root.mkdir()
+        for extension in sorted(EXPORT_FORMATS):
+            path=boundary_root/('controls'+extension)
+            export_machine(boundary,path,boundary_blocks)
+            checked=verify_export(boundary_blocks,path);boundary_reports[extension]=checked
+            if not checked['complete_path_comparison'] or checked['source_stitches']!=checked['decoded_stitches']:
+                raise RuntimeError(f'Bundled {extension} boundary fixture changed stitching.')
+            if extension=='.vp3':
+                if checked['controls']['trim']!={'source':1,'decoded':2} or not checked['problems'] or any('Trim commands increased' not in p for p in checked['problems']):
+                    raise RuntimeError('Bundled VP3 boundary-trim behavior changed; review controls.')
+            elif extension=='.tbf':
+                if checked['thread_control_order_matches'] is not False or checked['verified']:
+                    raise RuntimeError('Bundled TBF control-order mismatch was not reported.')
+            elif not checked['verified'] or checked['thread_control_order_matches'] is not True:
+                raise RuntimeError(f'Bundled {extension} did not retain thread-relative trim order.')
+        (boundary_root/'verification.json').write_text(json.dumps(boundary_reports,indent=2),encoding='utf-8')
+        report['checks'].append('explicit_boundary_trim_exports_and_order_review')
         exports=root/'exports';exports.mkdir()
         for extension in sorted(EXPORT_FORMATS):
             path=exports/('sample'+extension);export_machine(candidate,path)

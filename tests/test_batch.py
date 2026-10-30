@@ -46,6 +46,10 @@ def test_queue_converts_and_isolates_bad_files(app, source, tmp_path):
     assert [r["status"] for r in queue.results] == ["failed", "converted"]
     assert len(import_machine(output / "original.dst").project.objects) == 4
     assert source.read_bytes() == before
+    check=queue.results[1]["verification"]
+    assert not check["verified"]
+    assert check["controls"]["trim"]["decoded"] > check["controls"]["trim"]["source"]
+    assert "Trim commands increased" in queue.results[1]["notes"][0]
     assert not (output / "bad.dst").exists()
     assert not list(output.glob(".morale-batch-*"))
 
@@ -189,3 +193,85 @@ def test_worker_protocol_does_not_require_console(source, tmp_path, monkeypatch)
     result = json.loads(Path(str(staged) + ".result.json").read_text())
     assert result["notes"]
     assert staged.stat().st_size > 512
+
+
+def test_worker_retains_export_and_reports_unavailable_verification(source,tmp_path,monkeypatch):
+    import json
+    from morale.batch import worker_main
+    import morale.export_verify as verifier
+    def fail(*args):raise ValueError('reader unavailable')
+    monkeypatch.setattr(verifier,'verify_export',fail)
+    target=tmp_path/'staged.pes'
+    assert worker_main([str(source),str(target),'6'])==0
+    report=json.loads(Path(str(target)+'.result.json').read_text())
+    assert target.exists() and not report['verification']['verified']
+    assert 'reader unavailable' in report['notes'][0]
+
+
+def test_native_batch_summary_distinguishes_verification_from_conversion(app):
+    dialog=BatchDialog()
+    try:
+        base={'source':'source.pes','target':'result.dst','status':'converted','message':'','notes':[]}
+        rows=[{**base,'verification':{'verified':True}},
+              {**base,'verification':{'verified':False,'problems':['Lost trim']}},base,
+              {**base,'status':'failed','message':'Could not read'}]
+        dialog.queue.results=rows
+        for row in rows:dialog.show_result(row)
+        dialog.finished_queue()
+        assert '3 converted' in dialog.summary.text()
+        assert '1 checks passed' in dialog.summary.text()
+        assert '1 need review' in dialog.summary.text()
+        assert '1 not checked' in dialog.summary.text()
+        text=dialog.log.toPlainText()
+        assert 'CONVERTED — CHECKS PASSED' in text
+        assert 'CONVERTED — REVIEW NEEDED' in text
+        assert 'CONVERTED — NOT CHECKED' in text
+    finally:dialog.close()
+
+
+@pytest.mark.parametrize('strict,expected',[(False,0),(True,1)])
+def test_cli_can_require_verification_without_discarding_export(source,tmp_path,strict,expected):
+    import json
+    import subprocess
+    output=tmp_path/'cli';output.mkdir()
+    command=[sys.executable,'-m','morale.batch',str(source),'--output',str(output),'--format','dst']
+    if strict:command.append('--require-verification')
+    process=subprocess.run(command,capture_output=True,text=True,timeout=20)
+    assert process.returncode==expected,process.stderr
+    result=json.loads(process.stdout.strip())
+    assert result['status']=='converted' and result['verification']['verified'] is False
+    assert (output/'original.dst').exists()
+
+
+def test_atomic_report_preserves_previous_report_on_failure(tmp_path,monkeypatch):
+    import morale.batch as batch
+    path=tmp_path/'report.json';path.write_text('original')
+    def fail(*args):raise OSError('replace failed')
+    monkeypatch.setattr(batch.os,'replace',fail)
+    with pytest.raises(OSError):batch.save_report(path,[{'verification':{'verified':False}}])
+    assert path.read_text()=='original' and list(tmp_path.iterdir())==[path]
+
+
+@pytest.mark.parametrize('alias',['direct','symlink','hardlink'])
+def test_report_cannot_replace_design_files(tmp_path,alias):
+    from morale.batch import save_report
+    source=tmp_path/'design.pes';source.write_bytes(b'design')
+    target=source if alias=='direct' else tmp_path/'report.json'
+    if alias=='symlink':target.symlink_to(source)
+    if alias=='hardlink':os.link(source,target)
+    with pytest.raises(ValueError):save_report(target,[{'source':str(source),'target':str(tmp_path/'output.dst')}])
+    assert source.read_bytes()==b'design' and target.read_bytes()==b'design'
+
+
+def test_native_report_preserves_verification_data(app,tmp_path,monkeypatch):
+    import json
+    from PySide6.QtWidgets import QFileDialog
+    path=tmp_path/'report.json'
+    monkeypatch.setattr(QFileDialog,'getSaveFileName',lambda *a:(str(path),'JSON'))
+    dialog=BatchDialog()
+    try:
+        dialog.queue.results=[{'source':str(tmp_path/'source.pes'),'target':str(tmp_path/'target.dst'),
+            'status':'converted','notes':['Review trim'], 'verification':{'verified':False,'controls':{'trim':{'source':2,'decoded':1}}}}]
+        dialog.save_report()
+        assert json.loads(path.read_text())==dialog.queue.results
+    finally:dialog.close()

@@ -22,16 +22,21 @@ def travel_cost(states):
     return total
 
 
-def choose_fill_angles(project,evaluation_limit=512,command_limit=2_000_000):
+def choose_fill_angles(project,evaluation_limit=512,command_limit=2_000_000,locked_regions=()):
     Project.loads(project.dumps())
     if type(evaluation_limit) is not int or evaluation_limit<1 or type(command_limit) is not int or command_limit<1:
         raise ValueError('Invalid fill-angle search budget.')
+    try:locked_regions=tuple(locked_regions)
+    except TypeError:raise ValueError('Invalid locked fill regions.') from None
+    if any(type(i) is not int or not 0<=i<len(project.objects) for i in locked_regions):raise ValueError('Invalid locked fill regions.')
+    locked_regions=set(locked_regions)
     result=deepcopy(project)
     blocks={b.object_id:b for b in generate(project)}
     states=[movement(blocks[o.id].stitches) if o.id in blocks else None for o in project.objects]
     counts=[len(blocks[o.id].stitches) if o.id in blocks else 0 for o in project.objects]
-    before=current=travel_cost(states);evaluations=commands=0;changes=[];complete=True
+    before=current=travel_cost(states);evaluations=commands=0;changes=[];complete=True;stop_reason=None;rejected=0
     for index,source in enumerate(project.objects):
+        if index in locked_regions:continue
         if not(source.visible and source.stitch_type=='fill') or source.density_gradient or source.lettering or source.stage_note or source.group_id:
             continue
         points=[p for ring in source.rings() for p in ring]
@@ -40,19 +45,27 @@ def choose_fill_angles(project,evaluation_limit=512,command_limit=2_000_000):
         principal=math.degrees(.5*math.atan2(2*xy,xx-yy))%180
         angles=sorted({float(a) for a in range(0,360,30)}|{(principal+a)%360 for a in (0,90,180,270)})
         best=source;best_state=states[index];best_cost=current;best_count=counts[index]
-        for angle in angles:
-            if abs((angle-source.angle)%360)<1e-6:continue
-            if evaluations>=evaluation_limit or commands>=command_limit:complete=False;break
-            candidate=deepcopy(source);candidate.angle=angle;evaluations+=1
-            try:candidate_blocks=generate(Project(objects=[candidate]))
-            except ValueError:continue
-            candidate_count=sum(len(b.stitches) for b in candidate_blocks);commands+=candidate_count
-            if commands>command_limit:complete=False;break
-            if sum(counts)-counts[index]+candidate_count>250_000:continue
-            if not any(s.command=='stitch' for b in candidate_blocks for s in b.stitches):continue
-            candidate_state=movement(candidate_blocks[0].stitches) if candidate_blocks else None
-            trial=list(states);trial[index]=candidate_state;cost=travel_cost(trial)
-            if cost<best_cost-1e-6:best=candidate;best_state=candidate_state;best_cost=cost;best_count=candidate_count
+        tested={float(source.angle)%360}
+        for stage in range(2):
+            candidates=angles if stage==0 else sorted({(best.angle+offset)%360 for offset in (-15,-10,-5,5,10,15)})
+            for angle in candidates:
+                if angle in tested:continue
+                tested.add(angle)
+                if evaluations>=evaluation_limit or commands>=command_limit:
+                    complete=False
+                    stop_reason='evaluation_limit' if evaluations>=evaluation_limit else 'command_limit'
+                    break
+                candidate=deepcopy(source);candidate.angle=angle;evaluations+=1
+                try:candidate_blocks=generate(Project(objects=[candidate]))
+                except ValueError:rejected+=1;continue
+                candidate_count=sum(len(b.stitches) for b in candidate_blocks);commands+=candidate_count
+                if commands>command_limit:complete=False;stop_reason='command_limit';break
+                if sum(counts)-counts[index]+candidate_count>250_000:rejected+=1;continue
+                if not any(s.command=='stitch' for b in candidate_blocks for s in b.stitches):rejected+=1;continue
+                candidate_state=movement(candidate_blocks[0].stitches) if candidate_blocks else None
+                trial=list(states);trial[index]=candidate_state;cost=travel_cost(trial)
+                if cost<best_cost-1e-6:best=candidate;best_state=candidate_state;best_cost=cost;best_count=candidate_count
+            if not complete:break
         if best is not source:
             result.objects[index]=best;states[index]=best_state;counts[index]=best_count
             changes.append({'region':index,'from_degrees':source.angle,'to_degrees':best.angle,'travel_saved_mm':current-best_cost})
@@ -60,4 +73,5 @@ def choose_fill_angles(project,evaluation_limit=512,command_limit=2_000_000):
         if not complete:break
     Project.loads(result.dumps());generate(result)
     return result,{'before_mm':before,'after_mm':current,'changes':changes,'complete':complete,
-                   'evaluations':evaluations,'generated_commands':commands}
+                   'evaluations':evaluations,'generated_commands':commands,'stop_reason':stop_reason,
+                   'rejected_candidates':rejected,'evaluation_limit':evaluation_limit,'command_limit':command_limit}

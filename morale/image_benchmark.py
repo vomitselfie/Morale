@@ -56,8 +56,27 @@ def fixtures():
         ('enclosed-white',[DesignObject(kind='rectangle',width=20,height=20,color='#2266bb'),
                            DesignObject(kind='rectangle',width=4,height=8,color='#ffffff')],{'fill':2},False),
         ('holed-fill-routing',[holed],{'fill':1},False),
+        ('angled-triangle',[DesignObject(kind='polygon',width=32,height=21,x=-2,y=3,
+            points=[[-.5,-.5],[.5,-.5],[.1,.5]],color='#2266bb')],{'fill':1},False),
         ('reduced-palette-fill',[DesignObject(kind='rectangle',x=-10+i*4,width=4,height=20,color='#%02x%02x%02x'%(v,v,v))
-                                 for i,v in enumerate((32,64,96,128,176,224))],{'fill':3},False)]
+                                 for i,v in enumerate((32,64,96,128,176,224))],{'fill':3},False),
+        ('svg-hard-gradient',[DesignObject(kind='rectangle',x=-5,width=10,height=20,color='#ff0000'),
+                              DesignObject(kind='rectangle',x=5,width=10,height=20,color='#0000ff')],{'fill':2},False),
+        ('svg-group-opacity',[DesignObject(kind='rectangle',width=20,height=20,color='#0000ff'),
+                             DesignObject(kind='rectangle',x=-1,width=18,height=20,color='#7f0080')],{'fill':2},False),
+        ('svg-mask-cutout',[DesignObject(kind='compound',width=20,height=20,color='#cc3355',
+                            contours=[[[-.5,-.5],[.5,-.5],[.5,.5],[-.5,.5]],
+                                      [[-.2,-.2],[.2,-.2],[.2,.2],[-.2,.2]]])],{'fill':1},False)]
+
+
+def svg_source(name):
+    if name=='svg-hard-gradient':
+        return '<svg width="400" height="400"><defs><linearGradient id="g"><stop stop-color="red"/><stop offset=".5" stop-color="red"/><stop offset=".5" stop-color="blue"/><stop offset="1" stop-color="blue"/></linearGradient></defs><rect x="100" y="100" width="200" height="200" fill="url(#g)"/></svg>'
+    if name=='svg-group-opacity':
+        return '<svg width="400" height="400"><rect x="100" y="100" width="200" height="200" fill="blue"/><g opacity=".5"><rect x="100" y="100" width="120" height="200" fill="red"/><rect x="160" y="100" width="120" height="200" fill="red"/></g></svg>'
+    if name=='svg-mask-cutout':
+        return '<svg width="400" height="400"><defs><mask id="cut" maskContentUnits="objectBoundingBox"><rect width="1" height="1" fill="white"/><rect x=".3" y=".3" width=".4" height=".4" fill="black"/></mask></defs><rect x="100" y="100" width="200" height="200" fill="#cc3355" mask="url(#cut)"/></svg>'
+    return None
 
 
 def make_source(objects,path):
@@ -98,11 +117,19 @@ def build_report(destination):
     report['implementation_sha256']=implementation.hexdigest()
     for name,objects,expected,branching in fixtures():
         folder=root/name;folder.mkdir();source=folder/'source.png';make_source(objects,source)
+        artwork=svg_source(name)
+        if artwork is not None:
+            from .svg_render import render_svg_artwork
+            raster,_=render_svg_artwork(artwork,resolution=400)
+            if not raster.save(str(source)):raise OSError('Could not save rendered benchmark artwork.')
+            source=folder/'source.svg';source.write_text(artwork)
         options={'width':40,'method':'smooth','resolution':512,'colors':6,'minimum_region':1,'smoothing':.15,
                  'stitch_mode':'auto','split_branches':branching,'reduce_travel':True,'reverse_for_travel':True,
                  'finish_regions':True,'internal_trims':True,'trim_threshold':5,'keep_reference':True}
+        if artwork is not None:options.update(render_svg=True,colors=2,stitch_mode='fill')
         if name=='enclosed-white':options.update(stitch_mode='fill',border_white=True,colors=2)
         if name=='overlapping-colors':options.update(stitch_mode='fill')
+        if name in {'broad-fill','adjacent-colors','angled-triangle'}:options.update(stitch_mode='fill',optimize_fill_angles=True)
         if name=='holed-fill-routing':options.update(stitch_mode='fill',route_fill=True,optimize_fill_angles=True)
         if name=='reduced-palette-fill':
             options.update(colors=3,palette_metric='oklab',stitch_mode='fill',route_fill=True,
@@ -121,6 +148,9 @@ def build_report(destination):
             types=dict(Counter(o.stitch_type for o in project.objects))
             row.update(vector_area_error_ratio=ratio,stitch_types=types,type_check=types==expected,
                 vector_check=ratio<=.08,quality=info['trace_stats']['quality'],routing=info['trace_stats'].get('routing'))
+            if options.get('optimize_fill_angles'):
+                angles=row['quality']['fill_angles']
+                row['angle_travel_check']=angles['after_mm']<=angles['before_mm']+1e-6
             if name!='reduced-palette-fill':
                 row['color_geometry']=color_geometry(objects,traced.objects)
                 row['color_geometry_check']=row['color_geometry']['error_ratio']<=.08
@@ -135,7 +165,7 @@ def build_report(destination):
                 row['palette_check']=palette['metric']=='oklab' and palette['source_colors']>len({o.color for o in project.objects}) and palette['fit_error_after']<=palette['fit_error_before']+1e-12
                 row['stitch_settings_check']=all(o.spacing==.65 and o.stitch_length==3.5 and o.pull_compensation==.15 and not o.underlay for o in project.objects)
                 row['result_palette']=sorted({o.color for o in project.objects})
-            if name=='holed-fill-routing':
+            if name in {'holed-fill-routing','svg-mask-cutout'}:
                 rings=project.objects[0].rings();previous=(0.,0.);contained=True
                 for block in blocks:
                     for stitch in block.stitches:
@@ -154,7 +184,7 @@ def build_report(destination):
                     row['exports'][extension]={'bounds_check':passed,'sewn_path_check':sewn_path_check(comparison),'comparison':comparison,
                         'import_notes':imported.notes,'export_notes':export_notes(extension)}
                 except Exception as exc:row['exports'][extension]={'bounds_check':False,'sewn_path_check':False,'error':str(exc)}
-            row['artwork_checks_passed']=row['type_check'] and row['vector_check'] and row.get('planned_color_geometry_check',True) and row.get('color_geometry_check',True) and row.get('native_sewn_containment',True) and row.get('palette_check',True) and row.get('stitch_settings_check',True)
+            row['artwork_checks_passed']=row.get('angle_travel_check',True) and row['type_check'] and row['vector_check'] and row.get('planned_color_geometry_check',True) and row.get('color_geometry_check',True) and row.get('native_sewn_containment',True) and row.get('palette_check',True) and row.get('stitch_settings_check',True)
             row['checks_passed']=row['artwork_checks_passed'] and all(x['bounds_check'] and x['sewn_path_check'] for x in row['exports'].values())
         except Exception as exc:row.update(checks_passed=False,error=str(exc))
     report['artwork_checks_passed']=all(row.get('artwork_checks_passed',False) for row in report['cases'])
@@ -195,7 +225,8 @@ def write_pdf(root,report):
                 if 'native_sewn_containment' in row:lines.append(f"Native sewn segments inside traced material: {row['native_sewn_containment']}")
             lines+=['These are generated fixtures, not external files or physical sew-outs.',
                     'An export bounds pass does not establish command or travel equivalence.']
-            for line_number,line in enumerate(lines):painter.drawText(20,340+line_number*22,line[:130])
+            spacing=min(22,(writer.height()-20-340)/max(1,len(lines)-1))
+            for line_number,line in enumerate(lines):painter.drawText(20,round(340+line_number*spacing),line[:130])
     finally:painter.end()
 
 

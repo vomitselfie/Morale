@@ -7,6 +7,8 @@ import re
 import uuid
 from .reference import validate_reference
 
+MAX_PROJECT_BYTES = 50_000_000
+
 PALETTE = ["#447568", "#7d9c69", "#d68b79", "#e9b75e", "#77668b", "#547e9d", "#333c39", "#eee7d7"]
 
 
@@ -64,6 +66,8 @@ class DesignObject:
     motif_row_spacing: float = 5
     pattern_flip_x: bool = False
     pattern_flip_y: bool = False
+    ripple_center_x: float = 0
+    ripple_center_y: float = 0
 
     def outline(self):
         if self.handles:
@@ -139,6 +143,8 @@ class Project:
     hoop_height: float = 100
     objects: list[DesignObject] = field(default_factory=list)
     reference: dict = field(default_factory=dict)
+    guides: list = field(default_factory=list)
+    notes: str = ""
 
     def dumps(self):
         return json.dumps({"format": "morale", "version": 2, **asdict(self)}, indent=2, allow_nan=False)
@@ -156,8 +162,14 @@ class Project:
         if not isinstance(name, str) or len(name) > 200:
             raise ValueError("Invalid project name.")
         project = cls(name, number(data.get("hoop_width"), 20, 500), number(data.get("hoop_height"), 20, 500))
+        notes=data.get("notes", "")
+        if not isinstance(notes,str) or len(notes)>10000:
+            raise ValueError("Design notes must contain at most 10,000 characters.")
+        project.notes=notes
         validate_reference(data.get("reference", {}))
         project.reference = dict(data.get("reference", {}))
+        from .guides import validate_guides
+        project.guides=validate_guides(data.get("guides",[]))
         objects = data.get("objects")
         if not isinstance(objects, list) or len(objects) > 500:
             raise ValueError("A project may contain at most 500 objects.")
@@ -170,8 +182,10 @@ class Project:
                 obj = DesignObject(**raw)
             except TypeError as exc:
                 raise ValueError("Unsupported object properties.") from exc
-            if not isinstance(obj.kind, str) or not isinstance(obj.stitch_type, str) or obj.kind not in {"ellipse", "rectangle", "leaf", "polygon", "path", "stitches", "satin", "compound"} or obj.stitch_type not in {"running", "triple", "fill", "contour", "motif", "pattern", "manual", "satin"}:
+            if not isinstance(obj.kind, str) or not isinstance(obj.stitch_type, str) or obj.kind not in {"ellipse", "rectangle", "leaf", "polygon", "path", "stitches", "satin", "compound"} or obj.stitch_type not in {"running", "triple", "fill", "contour", "ripple", "motif", "pattern", "manual", "satin"}:
                 raise ValueError("Unsupported object or stitch type.")
+            if obj.stitch_type == "ripple" and obj.kind in {"path","satin","stitches"}:
+                raise ValueError("Ripple fill requires a closed outline.")
             if not isinstance(obj.id, str) or obj.id in ids or len(obj.id) > 100:
                 raise ValueError("Invalid or duplicate object ID.")
             if not isinstance(obj.group_id, str) or len(obj.group_id) > 100:
@@ -208,7 +222,7 @@ class Project:
                     raise ValueError("Unsupported lettering properties.")
                 if not isinstance(obj.lettering["text"], str) or not 1 <= len(obj.lettering["text"]) <= 80 or not isinstance(obj.lettering["family"], str) or len(obj.lettering["family"]) > 200:
                     raise ValueError("Invalid lettering text or font.")
-                number(obj.lettering["height"], 1, 100)
+                number(obj.lettering["height"], 1, 500 if obj.lettering.get('embroidery_font') else 100)
                 number(obj.lettering["spacing"], 50, 200)
                 if obj.lettering.get("layout", "straight") not in ("straight", "curved", "monogram", "path"):
                     raise ValueError("Unsupported lettering layout.")
@@ -243,6 +257,8 @@ class Project:
             number(obj.minimum_stitch, 0, 1)
             number(obj.jump_trim, 0, 50)
             number(obj.gradient_end_spacing, .2, 5)
+            number(obj.ripple_center_x, -100, 100)
+            number(obj.ripple_center_y, -100, 100)
             for value in (obj.motif_width,obj.motif_height,obj.motif_spacing,obj.motif_row_spacing):
                 number(value,.5,30)
             if not isinstance(obj.motif_pattern,str) or obj.motif_pattern not in {"diamond","box","cross","custom"}:
@@ -306,6 +322,8 @@ class Project:
         .morale file Morale writes can be reopened. Returns the serialized text.
         """
         text = self.dumps()
+        if len(text.encode("utf-8")) > MAX_PROJECT_BYTES:
+            raise ValueError("Project files are limited to 50 MB.")
         Project.loads(text)
         return text
 
@@ -318,7 +336,7 @@ class Project:
         path = Path(path)
         temporary = None
         try:
-            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, suffix=".tmp", delete=False) as stream:
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", newline="\n", dir=path.parent, suffix=".tmp", delete=False) as stream:
                 temporary = Path(stream.name)
                 stream.write(text)
             os.replace(temporary, path)

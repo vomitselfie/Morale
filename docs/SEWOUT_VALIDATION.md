@@ -11,6 +11,11 @@ only becomes an automatic recommendation after sew-outs support it.
 
 ## 1. Make the coupons
 
+The first available physical test machines are a Brother and a Bernina, supplied
+by the project owner. Exact models, firmware, hoops and transfer methods remain
+to be recorded before selecting test exports. Availability is not yet evidence
+of successful loading or sewing on either machine.
+
 A coupon is a small single-colour design that tests one thing. Build all of them:
 
 ```sh
@@ -39,6 +44,18 @@ Each coupon folder holds machine files (PES, PES v1, EXP, DST), the editable
 project, an actual-size placement PDF, a thread chart, `metadata.json`,
 `evaluation.json` and a README. Every coupon has a **10 mm square with a crosshair**
 in its lower-left corner, so measurements can be taken from photos.
+
+The generated `report.json` also records reopened-file verification for every
+machine export and its SHA-256 hash. The README includes the checks and any
+differences requiring review. A failed or incomplete check retains the file for
+inspection; it does not count as a successful verification. Review these results
+before transferring files, and confirm format and hoop support for your exact
+machine model. Passing software checks does not establish physical compatibility.
+
+The command prints CHECKS PASSED or REVIEW NEEDED for each export, followed by
+any detected differences. For automated validation, add `--require-verification`
+to exit nonzero if any export needs review. Generated files and evaluation forms
+are retained in either mode; the default exit status reports generation success.
 
 ## 2. Sew
 
@@ -87,3 +104,74 @@ Results are compared per coupon across machines and fabrics. When enough agree,
 Morale's provisional thresholds are changed, and the change references the
 results that justify it. Morale does not claim fabric-specific "intelligence"
 before that evidence exists.
+
+The `fabric-profiles` coupon compares Morale's three experimental fabric recipes
+on one piece of fabric: fill squares across the top and 4 mm satin columns below.
+Generate it with `python -m morale.coupons --output DIR --coupon fabric-profiles`.
+Use the placement sheet to identify columns, and record fabric, stabilizer,
+thread and machine in the metadata form. Evaluation targets include nominal
+dimensions and applied stitch settings. Compare coverage, puckering, measured
+size and visible underlay. This is a whole-recipe comparison; use the individual
+density, compensation and underlay coupons to isolate causes afterward.
+
+For an editable design without using the command line, choose **File → Load
+fabric comparison sampler**. It opens the same 100 × 100 mm design with the scale
+marker and six comparison samples. Save a project, export a placement PDF and
+choose a machine export through the usual File actions. The command-line coupon
+pack additionally supplies blank evaluation and machine/material metadata forms.
+
+**File → Load sewout coupon…** provides a native picker for every calibration
+design, including satin width, density, fill angles, compensation, underlay,
+small details, stitch length, tiny stitches, layering, jumps, lettering, branch
+joins and fabric profiles. Cancel leaves the current design intact; loading a
+choice uses the normal unsaved-work prompt. These open editable test designs,
+not previously measured or machine-certified results.
+
+Generated coupon packs also include **evaluation.pdf**, a printable sheet with
+sample names, target settings, blank measurements and machine/material fields.
+Use it beside the machine, then transfer observations to `evaluation.json` for
+structured comparisons. It is separate from the actual-size placement sheet.
+
+For an edited coupon or any current design, use **File → Export sewout worksheet
+(PDF)…**. This records included objects and their current stitch settings, with a
+project snapshot hash for identification. Hidden objects are omitted. Width and
+height describe source geometry before rotation and compensation; record actual
+sewn dimensions in the blank measurement fields. The worksheet does not certify
+an export or a physical result.
+
+Current-design worksheets also list generated width/height and needle penetration
+count. Generated dimensions are axis-aligned bounds after rotation and stitch
+generation, including compensation, underlay and ties, but before machine-format
+rounding. Compare these with the actual sewn size; source dimensions remain
+listed separately. These bounds do not predict fabric deformation.
+
+### Ripple spacing coupon
+
+Choose **Ripple spacing** in File → Load sewout coupon, or generate a complete
+pack with `python -m morale.coupons --output OUTPUT --coupon ripple-spacing`.
+The six 20 mm squares have 4 mm cutouts. Columns compare 0.5, 1 and 2 mm spacing;
+rows compare centered circles with a -60% X center offset. Underlay is disabled
+and short-stitch cleanup is 0.3 mm. Compare one row or column at a time, recording
+row separation, cutout clearance, puckering and thread breaks. These decorative
+open fills do not have a solid-coverage target. Use the included evaluation form
+and record the actual machine model, hoop and materials before sewing.
+
+### Export a complete standard pack from the desktop
+
+Use **File → Export standard sewout pack…**, choose a coupon, then choose a parent
+folder. Morale creates a named subfolder with machine files, the editable project,
+placement/evaluation PDFs and blank metadata/results forms. Existing pack folders
+are refused so previous measurements remain intact. The completion dialog lists
+any files needing export review; expand its details for the individual checks.
+This exports a fresh standard coupon. To document your edited design, use
+**Export sewout worksheet (PDF)…** and the regular machine export command.
+
+An interrupted export retains an `INCOMPLETE.txt` marker in its folder. Do not
+sew files from that pack; generate a new pack in another folder. The marker is
+removed only after all pack files have been written. Its absence does not replace
+export verification or physical validation.
+
+Desktop pack export runs in a separate worker while a progress dialog remains
+responsive. Cancel (or close the progress window) stops the worker. Exports have
+a 60-second limit; a timeout reports failure. Cancelled/failed packs may retain
+partial files with the incomplete marker; choose a new folder when retrying.

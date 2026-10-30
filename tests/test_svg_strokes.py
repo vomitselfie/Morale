@@ -85,3 +85,71 @@ def test_native_option_invalidates_geometry_choices(tmp_path):
 @pytest.mark.parametrize('setting',[1,'yes',None])
 def test_invalid_expansion_setting(tmp_path,setting):
     with pytest.raises(ValueError,match='expansion'):vector_artwork(source(tmp_path,''),expand_strokes=setting)
+
+
+@pytest.mark.parametrize('cap,length',[('butt',20),('round',22),('square',22)])
+def test_non_scaling_stroke_expands_in_transformed_space(tmp_path,cap,length):
+    path=source(tmp_path,f'<path transform="translate(2 3) scale(2 3)" d="M2 4 H12" fill="none" stroke="red" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linecap="{cap}"/>')
+    before=path.read_bytes()
+    project,_,stats=vector_artwork(path,width=40,expand_strokes=True)
+    obj=project.objects[0]
+    assert (obj.x,obj.y,obj.width,obj.height)==pytest.approx((-4,-5,length,2),abs=.01)
+    assert path.read_bytes()==before
+    from morale.svg_import import import_svg_text
+    restored=import_svg_text(stats['svg'],center_artwork=False)
+    assert restored.objects[0].rings()==obj.rings()
+
+
+def test_non_scaling_dash_width_and_spacing_under_scale(tmp_path):
+    path=source(tmp_path,'<path transform="scale(2 3)" d="M2 4 H12" fill="none" stroke="red" stroke-width="2" vector-effect="non-scaling-stroke" stroke-dasharray="4 2"/>')
+    project,_,_=vector_artwork(path,width=40,expand_strokes=True)
+    region=outline_path(project.objects[0].rings())
+    assert region.contains(QPointF(-14,-8))
+    assert not region.contains(QPointF(-11,-8))
+    assert region.contains(QPointF(-8,-8))
+    assert project.objects[0].height==pytest.approx(2,abs=.01)
+
+
+@pytest.mark.parametrize('target_width,expected_height',[(80,2),(40,1)])
+def test_non_scaling_stroke_viewbox_then_physical_resize(tmp_path,target_width,expected_height):
+    path=tmp_path/'viewbox.svg'
+    path.write_text('<svg width="80" height="80" viewBox="0 0 40 40"><path d="M5 10 H15" transform="scale(2)" stroke="red" fill="none" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>')
+    project,_,_=vector_artwork(path,width=target_width,expand_strokes=True)
+    obj=project.objects[0]
+    assert obj.width==pytest.approx(target_width/2,abs=.01)
+    assert obj.height==pytest.approx(expected_height,abs=.01)
+
+
+def test_non_scaling_stroke_matches_equivalent_transformed_path(tmp_path):
+    shape='<path d="M5 10 L15 10 L15 15" transform="matrix(2 .5 .3 1 1 2)" stroke="red" fill="none" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>'
+    project,_,_=vector_artwork(source(tmp_path,shape),width=40,expand_strokes=True)
+    reference='<path d="M14 14.5 L34 19.5 L35.5 24.5" stroke="red" fill="none" stroke-width="2" stroke-linejoin="round"/>'
+    expected,_,_=vector_artwork(source(tmp_path,reference),width=40,expand_strokes=True)
+    a=outline_path(project.objects[0].rings());b=outline_path(expected.objects[0].rings())
+    assert a.subtracted(b).isEmpty() and b.subtracted(a).isEmpty()
+
+
+@pytest.mark.parametrize('extension',['pes','pec','jef','dst','exp','vp3','u01','tbf','xxx'])
+def test_non_scaling_border_digitizes_and_exports(tmp_path,extension):
+    from morale.raster_trace import worker_main
+    from morale.engine import generate
+    from morale.formats import export_machine
+    from morale.export_verify import verify_export
+    path=source(tmp_path,'<path transform="translate(2 3) scale(2 3)" d="M2 4 H12" fill="none" stroke="red" stroke-width="2" vector-effect="non-scaling-stroke"/>')
+    output=tmp_path/'converted';output.mkdir()
+    assert worker_main([str(path),str(output),json.dumps({'width':40,'expand_strokes':True,'stitch_mode':'auto'})])==0
+    info=json.loads((output/'preview.json').read_text());project=Project.loads(info['project'])
+    assert len(project.objects)==1 and project.objects[0].stitch_type=='satin'
+    blocks=generate(project);destination=tmp_path/f'border.{extension}'
+    export_machine(project,destination,blocks)
+    check=verify_export(blocks,destination)
+    assert check['complete_path_comparison']
+    if extension=='vp3':
+        # VP3 currently emits an additional end trim. Geometry must still
+        # pass, and verification must expose this control difference.
+        assert not check['verified']
+        assert check['controls']['trim']=={'source':0,'decoded':1}
+        assert len(check['problems'])==1
+        assert check['problems'][0].startswith('Trim commands increased:')
+    else:
+        assert check['verified'],check['problems']

@@ -7,7 +7,7 @@ import tempfile
 
 from PySide6.QtCore import QObject,Signal,QProcess,QProcessEnvironment,QTimer,QDir,QSortFilterProxyModel,Qt,QSize
 from PySide6.QtGui import QImage,QPixmap,QImageReader
-from PySide6.QtWidgets import QFileSystemModel,QDialog,QVBoxLayout,QHBoxLayout,QPushButton,QLabel,QLineEdit,QTreeView,QFileDialog,QSplitter,QWidget,QStackedWidget,QListWidget,QAbstractItemView
+from PySide6.QtWidgets import QFileSystemModel,QDialog,QVBoxLayout,QHBoxLayout,QPushButton,QLabel,QLineEdit,QTreeView,QFileDialog,QSplitter,QWidget,QStackedWidget,QListWidget,QAbstractItemView,QPlainTextEdit
 
 from .formats import IMPORT_FORMATS
 
@@ -27,6 +27,16 @@ def read_preview_result(root):
         value=info.get(key)
         if isinstance(value,bool) or not isinstance(value,(int,float)) or value<0 or value>20_000 or not math.isfinite(value):raise ValueError(f'Invalid preview {key}.')
     if type(info.get('size')) is not int or info['size']<0 or type(info.get('mtime_ns')) is not int:raise ValueError('Invalid preview file fingerprint.')
+    if 'source_fingerprint' in info:
+        fingerprint=info['source_fingerprint']
+        if not isinstance(fingerprint,list) or len(fingerprint)!=2 or any(type(v) is not int for v in fingerprint) or fingerprint[0]<0:
+            raise ValueError('Invalid artwork source fingerprint.')
+    if 'source_digest' in info:
+        digest=info['source_digest']
+        if not isinstance(digest,str) or len(digest)!=64 or any(c not in '0123456789abcdef' for c in digest):
+            raise ValueError('Invalid artwork source digest.')
+    if not isinstance(info.get('project_notes',''),str) or len(info.get('project_notes',''))>10000:
+        raise ValueError('Invalid design notes in preview.')
     notes=info.get('notes')
     if not isinstance(notes,list) or len(notes)>10_000 or any(not isinstance(note,str) or len(note)>8192 for note in notes):raise ValueError('Invalid preview notes.')
     if picture.stat().st_size>8_000_000:raise ValueError('Preview image exceeds 8 MB.')
@@ -193,7 +203,7 @@ class LibraryDialog(QDialog):
         row.addWidget(choose)
         layout.addLayout(row)
         self.search=QLineEdit()
-        self.search.setPlaceholderText('Filter filenames, or search subfolders by relative path')
+        self.search.setPlaceholderText('Filename, notes: linen, or blank to list all designs')
         self.search.setAccessibleName('Search design filenames')
         layout.addWidget(self.search)
         search_row=QHBoxLayout()
@@ -232,7 +242,7 @@ class LibraryDialog(QDialog):
         self.results.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.results.itemSelectionChanged.connect(lambda:self.catalog_results_button.setText(f'Catalog selection ({len(self.results.selectedItems())})…' if self.results.selectedItems() else 'Catalog results…'))
         self.results.currentTextChanged.connect(self.search_selection_changed)
-        self.results.itemDoubleClicked.connect(self.open_selected)
+        self.results.itemActivated.connect(self.open_selected)
         self.file_views.addWidget(self.results);split.addWidget(self.file_views)
         from .library_thumbnails import ThumbnailLoader
         self.thumbnails=ThumbnailLoader(self.results,self)
@@ -247,6 +257,9 @@ class LibraryDialog(QDialog):
         self.details.setTextFormat(Qt.TextFormat.PlainText)
         self.details.setWordWrap(True)
         right.addWidget(self.details)
+        self.project_notes=QPlainTextEdit();self.project_notes.setReadOnly(True)
+        self.project_notes.setAccessibleName('Saved design notes');self.project_notes.setMaximumHeight(140)
+        self.project_notes.hide();right.addWidget(self.project_notes)
         right.addStretch()
         split.addWidget(panel)
         layout.addWidget(split,1)
@@ -267,6 +280,10 @@ class LibraryDialog(QDialog):
         close.clicked.connect(self.reject)
         buttons.addWidget(close)
         layout.addLayout(buttons)
+        self.search.textChanged.connect(self.search_query_changed)
+        self.search.returnPressed.connect(self.search_subfolders)
+        self.search.setAccessibleDescription('Enter searches this folder and its subfolders. Use notes: followed by text to search saved project notes, or leave blank to list all supported designs.')
+        for button in self.findChildren(QPushButton):button.setAutoDefault(False)
         self.resize(920,650)
         self.set_folder(folder or str(Path.home()))
 
@@ -314,6 +331,7 @@ class LibraryDialog(QDialog):
         self.runner.cancel()
         self.preview_path=None
         self.preview_info=None
+        self.project_notes.clear();self.project_notes.hide()
         self.open_button.setEnabled(False)
         self.image.clear()
         self.details.setText('Preview cancelled. Select a file to load another preview.')
@@ -327,20 +345,30 @@ class LibraryDialog(QDialog):
             self.details.setText(f'Loading {Path(path).name}…')
             self.runner.load(path)
 
+    def search_query_changed(self,text):
+        if self.file_views.currentIndex()!=1:return
+        self.search_runner.cancel()
+        self.thumbnails.reset(self.folder)
+        self.cancel_preview()
+        self.results.clear()
+        self.search_status.setText('Query changed. Choose Search subfolders to update the results.')
+
     def search_subfolders(self):
         query=self.search.text().strip()
-        if not query or len(query)>200:
-            self.search_status.setText('Enter 1–200 characters to search filenames and relative paths.');return
+        if len(query)>200:
+            self.search_status.setText('Use up to 200 characters, or leave blank to list all designs.');return
         self.cancel_preview();self.thumbnails.reset(self.folder);self.results.clear();self.file_views.setCurrentIndex(1)
         self.search_runner.query=query;self.search_runner.load(self.folder)
-        self.search_status.setText('Searching subfolders… File contents are not decoded.')
+        self.search_status.setText('Searching saved project notes…' if query.casefold().startswith('notes:') else 'Searching subfolders… File contents are not decoded.')
 
     def show_search(self,result):
-        if result['root']!=self.folder:return
+        if result['root']!=self.folder or result['query'].strip()!=self.search.text().strip():return
         self.results.addItems(result['matches'])
         self.thumbnails.schedule()
         suffix=' Search limit reached; narrow the query or folder.' if not result['complete'] else ''
-        self.search_status.setText(f"{len(result['matches'])} designs found for “{result['query']}”; {result['entries_examined']} entries examined; {result['unreadable_entries']} unreadable entries.{suffix}")
+        if result.get('stop_reason')=='metadata_byte_limit':suffix=' Saved-note read limit reached; choose a smaller folder.'
+        scope=f'for “{result["query"]}”' if result["query"].strip() else 'in this folder and its subfolders'
+        self.search_status.setText(f"{len(result['matches'])} designs found {scope}; {result['entries_examined']} entries examined; {result['unreadable_entries']} unreadable entries.{suffix}")
 
     def search_failed(self,path,message):self.search_status.setText(message)
 
@@ -373,6 +401,8 @@ class LibraryDialog(QDialog):
     def show_preview(self,path,info,image):
         self.preview_path=path
         self.preview_info=info
+        self.project_notes.setPlainText(info.get('project_notes',''))
+        self.project_notes.setVisible(bool(info.get('project_notes')))
         self.image.setPixmap(QPixmap.fromImage(image))
         self.details.setText(f"{info['name']}\n{info['stitches']:,} stitches · {info['colors']} RGB colors\n{info['width']:.1f} × {info['height']:.1f} mm command bounds\n\n"+'\n'.join(info['notes']))
         self.open_button.setEnabled(True)

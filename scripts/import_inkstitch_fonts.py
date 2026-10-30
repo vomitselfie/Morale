@@ -21,8 +21,6 @@ from svgelements import Matrix, Path as SvgPath, Move, Line, Close
 MM_PER_PX = 25.4 / 96
 ALLOWED = ("sil open font license", "cc-by-sa", "scc-by-sa", "cc by-sa", "public domain", "mublic domain")
 BLOCKED = ("-nc", " nc", "noncommercial", "-nd", " nd")
-# Basic Latin, Latin-1 and Latin Extended-A letters plus common punctuation.
-CHARACTERS = set(chr(c) for c in range(0x20, 0x7F)) | set(chr(c) for c in range(0xA1, 0x180)) | set("–—‘’‚“”„•…€")
 NS = {"svg": "http://www.w3.org/2000/svg", "inkscape": "http://www.inkscape.org/namespaces/inkscape",
       "sodipodi": "http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd", "inkstitch": "http://inkstitch.org/namespace"}
 LABEL = "{%s}label" % NS["inkscape"]
@@ -286,11 +284,20 @@ def glyphs_from(svg, meta, glyphs):
             node = parents.get(node)
         return matrix
     for layer in root.iter("{%s}g" % NS["svg"]):
+        ancestor=parents.get(layer)
+        definition=False
+        while ancestor is not None:
+            if ancestor.tag.split('}')[-1] in {'defs','clipPath','mask','symbol','metadata'}:
+                definition=True;break
+            ancestor=parents.get(ancestor)
+        if definition:continue
         label = layer.get(LABEL) or ""
         if not label.startswith("GlyphLayer-"):
             continue
         char = label[len("GlyphLayer-"):]
-        if len(char) != 1 or char not in CHARACTERS or char in glyphs:
+        # Keep the source's printable Unicode glyphs, including non-Latin scripts.
+        # Multi-character contextual glyphs require separate shaping support.
+        if len(char) != 1 or not char.isprintable() or char.isspace() or char in glyphs:
             continue
         # Glyph x is measured from the document origin, as Ink/Stitch does.
         pieces = glyph_pieces(layer, placement(layer), baseline, 0., scale)
@@ -316,7 +323,7 @@ def cap_height(glyphs):
 
     Guide lines in the source files are not always placed on the letters.
     """
-    for char in "HEITLNMXZ":
+    for char in "HEITLNMXZΗΕΙΤΝΜΧΖ":
         if char in glyphs:
             return round(glyph_top(glyphs[char]), 3)
     return round(max(glyph_top(g) for g in glyphs.values()), 3)
@@ -324,7 +331,7 @@ def cap_height(glyphs):
 
 def rebaseline(glyphs):
     """Put flat-bottomed capitals on y = 0 when the source baseline guide is misplaced."""
-    reference = next((glyphs[c] for c in "HEILTNMXZ" if c in glyphs), None)
+    reference = next((glyphs[c] for c in "HEILTNMXZΗΕΙΤΝΜΧΖ" if c in glyphs), None)
     if reference is None:
         return
     bottom = max(y for piece in reference["pieces"] for kind, value in piece.items()

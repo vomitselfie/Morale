@@ -29,8 +29,13 @@ class TraceDialog(QDialog):
         super().__init__(parent)
         self.path=path
         self.project=None
+        self.source_fingerprint=None
+        self.source_digest=None
+        self.source_corrections_reset=False
         self.svg=''
         self.overrides={}
+        self.region_spacing={}
+        self.region_angles={}
         self.seams={}
         self.quality=None
         self.runner=TraceRunner(self)
@@ -50,7 +55,10 @@ class TraceDialog(QDialog):
         stitch_form=settings_page('Stitches')
         travel_form=settings_page('Travel and finishing')
         self.preview_page=QWidget();layout=QVBoxLayout(self.preview_page)
-        self.tabs.addTab(self.preview_page,'Preview')
+        self.preview_scroll=QScrollArea();self.preview_scroll.setWidgetResizable(True)
+        self.preview_scroll.setAccessibleName('Artwork conversion preview')
+        self.preview_scroll.setWidget(self.preview_page)
+        self.tabs.addTab(self.preview_scroll,'Preview')
         text=QLabel('Convert logos and illustrations into editable embroidery. Compare the artwork, fitted shapes and stitches before adding them to your design.')
         text.setWordWrap(True)
         main_layout.insertWidget(0,text)
@@ -215,6 +223,11 @@ class TraceDialog(QDialog):
         self.expand_strokes.setToolTip('Use the drawn border width, caps, joins and dash pattern (numbers or absolute lengths). Inspect overlaps with adjacent fills. Changing this setting clears region overrides.')
         form.addRow(self.expand_strokes)
         form.setRowVisible(self.expand_strokes,Path(path).suffix.lower()=='.svg')
+        self.artwork_form=artwork_form
+        self.render_svg=QCheckBox('Trace SVG colors and gradients')
+        self.render_svg.setToolTip('Reduce rendered SVG colors to editable thread-color regions. Clips, masks, opacity and stroke widths are rendered before color reduction.')
+        form.addRow(self.render_svg)
+        form.setRowVisible(self.render_svg,Path(path).suffix.lower()=='.svg')
         if Path(path).suffix.lower()=='.svg':
             self.method.setItemText(0,'SVG vectors (no raster tracing)');self.method.setEnabled(False)
             self.stitch_mode.setItemText(1,'Fill regions; retain SVG outlines')
@@ -233,12 +246,40 @@ class TraceDialog(QDialog):
             column.addWidget(label,1)
             images.addLayout(column,1)
         layout.addLayout(images,1)
-        self.decisions=QTableWidget(0,5)
-        self.decisions.setHorizontalHeaderLabels(['Region','Use','Result','Reason','Band seam'])
+        self.decisions=QTableWidget(0,7)
+        self.decisions.setWordWrap(False)
+        self.decisions.setHorizontalHeaderLabels(['Region','Use','Result','Reason','Band seam','Spacing (mm)','Fill angle'])
+        self.decisions.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.decisions.horizontalHeader().setSectionResizeMode(3,QHeaderView.ResizeMode.Stretch)
+        self.decisions.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        self.decisions.setMinimumHeight(110)
         self.decisions.setMaximumHeight(160)
         self.decisions.setAccessibleName('Region stitch choices')
         layout.addWidget(self.decisions)
+        self.region_reason=QLabel('Select a region to read its stitch explanation.')
+        self.region_reason.setWordWrap(True)
+        self.region_reason.setTextFormat(Qt.TextFormat.PlainText)
+        self.region_reason.setAccessibleName('Selected region stitch explanation')
+        layout.addWidget(self.region_reason)
+        self.decisions.currentCellChanged.connect(self.show_region_reason)
+        self.reset_selected_region=QPushButton('Reset selected region corrections')
+        self.reset_selected_region.setEnabled(False)
+        self.reset_selected_region.setToolTip('Clear stitch choice, band seam, spacing and angle overrides for the selected artwork region. Other regions keep their corrections.')
+        self.reset_selected_region.clicked.connect(self.reset_region_corrections)
+        self.decisions.currentCellChanged.connect(lambda row,*_:self.reset_selected_region.setEnabled(row>=0))
+        layout.addWidget(self.reset_selected_region)
+        reset_spacing=QPushButton("Reset region spacing to global settings")
+        reset_spacing.clicked.connect(self.reset_region_spacing);layout.addWidget(reset_spacing)
+        self.lock_selected_angle=QPushButton('Lock selected fill angle')
+        self.lock_selected_angle.setToolTip('Keep the selected region’s displayed fill direction during automatic angle search, without changing its value.')
+        self.lock_selected_angle.clicked.connect(self.lock_region_angle)
+        angle_actions=QHBoxLayout();angle_actions.addWidget(self.lock_selected_angle)
+        self.unlock_selected_angle=QPushButton('Unlock selected fill angle')
+        self.unlock_selected_angle.setToolTip('Release only this region’s angle lock. Keep spacing, stitch choice and other regions’ corrections.')
+        self.unlock_selected_angle.clicked.connect(self.unlock_region_angle)
+        angle_actions.addWidget(self.unlock_selected_angle);layout.addLayout(angle_actions)
+        reset_angles=QPushButton("Reset region fill angles")
+        reset_angles.clicked.connect(self.reset_region_angles);layout.addWidget(reset_angles)
         self.status=QLabel('Generate a preview. Changing settings invalidates the previous result. Each worker has a 30-second limit.')
         self.status.setWordWrap(True)
         self.status.setTextFormat(Qt.TextFormat.PlainText)
@@ -278,8 +319,8 @@ class TraceDialog(QDialog):
         self.buttons.button(QDialogButtonBox.StandardButton.Ok).setEnabled(False)
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
-        row.addWidget(self.buttons)
         main_layout.addLayout(row)
+        main_layout.addWidget(self.buttons)
         for widget in (self.width,self.colors,self.minimum,self.smoothing): widget.valueChanged.connect(self.invalidate)
         self.resolution.currentIndexChanged.connect(self.invalidate)
         self.white.toggled.connect(self.invalidate)
@@ -312,6 +353,7 @@ class TraceDialog(QDialog):
         self.internal_trims.toggled.connect(self.invalidate_preview)
         self.keep_reference.toggled.connect(self.invalidate_preview)
         self.expand_strokes.toggled.connect(self.invalidate)
+        self.render_svg.toggled.connect(self.svg_render_changed)
         self._preset_controls={
             'method':self.method,'stitch_mode':self.stitch_mode,'colors':self.colors,'resolution':self.resolution,
             'minimum_region':self.minimum,'smoothing':self.smoothing,'palette_metric':self.palette_metric,
@@ -319,10 +361,12 @@ class TraceDialog(QDialog):
             'split_branches':self.branching,'branch_overlap':self.branch_overlap,'optimize_fill_angles':self.optimize_angles,'route_fill':self.route_fill,
             'remove_overlap':self.remove_overlap,'overlap_allowance':self.overlap_allowance,'minimum_fill_area':self.minimum_fill_area,'minimum_hole_area':self.minimum_hole_area,
             'reduce_travel':self.route,'group_colors':self.group_colors,'distinct_threads':self.distinct_threads,'reverse_for_travel':self.reverse_travel,'finish_regions':self.finishing,
-            'internal_trims':self.internal_trims,'trim_threshold':self.trim_threshold,'expand_strokes':self.expand_strokes,
+            'internal_trims':self.internal_trims,'trim_threshold':self.trim_threshold,'expand_strokes':self.expand_strokes,'render_svg':self.render_svg,
             'custom_stitches':self.custom_stitches,**self.stitch_settings,**self.underlay_choices}
-        preset_row=QHBoxLayout();preset_row.addWidget(QLabel('Reuse tracing and stitch settings'),1)
-        for title,slot in [('Load preset…',self.load_preset),('Save preset…',self.save_preset)]:
+        preset_row=QHBoxLayout()
+        preset_label=QLabel('Reuse tracing and stitch settings');preset_label.setWordWrap(True)
+        preset_row.addWidget(preset_label,1)
+        for title,slot in [('Load preset…',self.load_preset),('Save preset…',self.save_preset),('Load fabric…',self.load_fabric_preset)]:
             button=QPushButton(title);button.clicked.connect(slot)
             button.setToolTip('Presets contain tracing, stitch and travel settings. Choose artwork size, reference handling and thread chart separately.')
             preset_row.addWidget(button)
@@ -343,7 +387,7 @@ class TraceDialog(QDialog):
         try:
             for key,value in settings.items():
                 control=self._preset_controls[key]
-                if key=='method' and Path(self.path).suffix.lower()=='.svg':continue
+                if key=='method' and Path(self.path).suffix.lower()=='.svg' and not settings['render_svg']:continue
                 if isinstance(control,QComboBox):control.setCurrentIndex(control.findData(value))
                 elif isinstance(control,QCheckBox):control.setChecked(value)
                 else:control.setValue(value)
@@ -355,8 +399,38 @@ class TraceDialog(QDialog):
         self.branch_overlap.setEnabled(self.branching.isChecked())
         self.trim_threshold.setEnabled(self.finishing.isChecked());self.internal_trims.setEnabled(self.finishing.isChecked())
         for control in [*self.stitch_settings.values(),self.trace_underlay,*self.underlay_choices.values()]:control.setEnabled(self.custom_stitches.isChecked())
-        self.method_changed()
+        if Path(self.path).suffix.lower()=='.svg':self.svg_render_changed()
+        else:self.method_changed()
         self.status.setText('Preset loaded. Review artwork size, reference handling and thread chart, then generate a new preview.')
+
+    def apply_fabric_preset(self,settings):
+        from .fabric import validate_settings
+        settings=validate_settings(settings)
+        changes=dict(custom_stitches=True,fill_spacing=settings['spacing'],satin_spacing=settings['spacing'],
+                        pull_compensation=settings['pull_compensation'],underlay_inset=settings['underlay_inset'],
+                        underlay_spacing=settings['underlay_spacing'],underlay='auto',fill_underlay=settings['underlay_style'],
+                        satin_underlay='auto' if settings['underlay_style']=='edge' else 'center_zigzag')
+        if not settings.get('underlay',True):changes.update(underlay='off',fill_underlay='off',satin_underlay='off')
+        blockers=[QSignalBlocker(self._preset_controls[key]) for key in changes]
+        try:
+            for key,value in changes.items():
+                control=self._preset_controls[key]
+                if isinstance(control,QComboBox):control.setCurrentIndex(control.findData(value))
+                elif isinstance(control,QCheckBox):control.setChecked(value)
+                else:control.setValue(value)
+        finally:
+            for blocker in blockers:blocker.unblock()
+        for control in [*self.stitch_settings.values(),self.trace_underlay,*self.underlay_choices.values()]:control.setEnabled(True)
+        self.invalidate_preview()
+        self.status.setText('Fabric settings loaded. Region corrections are retained; per-region spacing overrides fabric spacing. Generate a new preview before applying.')
+
+    def load_fabric_preset(self):
+        path,_=QFileDialog.getOpenFileName(self,'Load fabric preset','','Morale fabric presets (*.morale-fabric.json)')
+        if not path:return
+        try:
+            from .fabric_presets import load_preset
+            self.apply_fabric_preset(load_preset(path))
+        except (OSError,ValueError) as exc:QMessageBox.warning(self,'Fabric preset not loaded',str(exc))
 
     def load_preset(self):
         path,_=QFileDialog.getOpenFileName(self,'Load conversion preset','','Morale conversion preset (*.morale-trace.json)')
@@ -375,6 +449,18 @@ class TraceDialog(QDialog):
             self.status.setText(f'Saved conversion preset: {Path(path).name}')
         except (OSError,ValueError) as exc:QMessageBox.warning(self,'Preset not saved',str(exc))
 
+    def svg_render_changed(self):
+        enabled=self.render_svg.isChecked()
+        self.method.setEnabled(enabled)
+        self.method.setItemText(0,'Smooth color trace' if enabled else 'SVG vectors (no raster tracing)')
+        if not enabled:self.method.setCurrentIndex(0)
+        self.stitch_mode.setItemText(1,'Fill regions' if enabled else 'Fill regions; retain SVG outlines')
+        for widget in (self.colors,self.palette_metric,self.resolution,self.smoothing,self.minimum,self.white,self.border_white):
+            self.artwork_form.setRowVisible(widget,enabled)
+        self.artwork_form.setRowVisible(self.expand_strokes,not enabled)
+        self.save_svg_button.setText('Save traced SVG…' if enabled else 'Save prepared SVG…')
+        self.method_changed()
+
     def method_changed(self):
         smooth=self.method.currentData()=='smooth'
         self.minimum_label.setText('Minimum detail size (pixels)' if smooth else 'Omit regions below (pixel area)')
@@ -385,7 +471,7 @@ class TraceDialog(QDialog):
         self.invalidate()
 
     def invalidate(self,*args):
-        self.overrides={};self.seams={}; self.decisions.setRowCount(0)
+        self.overrides={};self.seams={};self.region_spacing={};self.region_angles={}; self.decisions.setRowCount(0)
         self.invalidate_preview()
 
     def invalidate_preview(self):
@@ -396,6 +482,7 @@ class TraceDialog(QDialog):
         self.quality=None;self.quality_button.setEnabled(False)
         self.runner.cancel()
         self.project=None
+        self.show_region_reason(-1)
         self.svg=''; self.save_svg_button.setEnabled(False)
         self.vector_preview.setText('Vector outlines')
         self.buttons.button(QDialogButtonBox.StandardButton.Ok).setEnabled(False)
@@ -403,7 +490,17 @@ class TraceDialog(QDialog):
         self.status.setText('Preview invalidated or tracing cancelled. Generate a preview to apply these settings.')
 
     def generate(self):
-        self.tabs.setCurrentWidget(self.preview_page)
+        self.tabs.setCurrentWidget(self.preview_scroll)
+        self.source_corrections_reset=False
+        if self.source_fingerprint is not None:
+            try:
+                current=Path(self.path).stat()
+                if [current.st_size,current.st_mtime_ns]!=self.source_fingerprint:
+                    self.invalidate();self.source_fingerprint=None
+                    self.source_digest=None
+                    self.source_corrections_reset=True
+            except OSError as exc:
+                self.failed(self.path,str(exc));return
         self.invalidate_preview()
         self.runner.options={'width':self.width.value(),'colors':self.colors.value(),'resolution':self.resolution.currentData(),
                              'ignore_white':self.white.isChecked(),'minimum_region':self.minimum.value(),
@@ -416,6 +513,11 @@ class TraceDialog(QDialog):
         self.runner.options['thread_catalog']=self.thread_catalog.currentData()
         self.runner.options['color_metric']=self.color_metric.currentData()
         self.runner.options['band_seams']=dict(self.seams)
+        self.runner.options['region_spacing']=dict(self.region_spacing)
+        self.runner.options['region_angles']=dict(self.region_angles)
+        if self.source_fingerprint is not None:
+            self.runner.options['expected_source']=self.source_fingerprint
+        if self.source_digest is not None:self.runner.options['expected_source_digest']=self.source_digest
         self.runner.options['split_branches']=self.branching.isChecked()
         self.runner.options['branch_overlap']=self.branch_overlap.value()
         self.runner.options.update(finish_regions=self.finishing.isChecked(),trim_threshold=self.trim_threshold.value())
@@ -423,6 +525,7 @@ class TraceDialog(QDialog):
         self.runner.options['reverse_for_travel']=self.reverse_travel.isChecked()
         self.runner.options['keep_reference']=self.keep_reference.isChecked()
         self.runner.options['expand_strokes']=self.expand_strokes.isChecked()
+        self.runner.options['render_svg']=Path(self.path).suffix.lower()=='.svg' and self.render_svg.isChecked()
         self.runner.options.update(remove_overlap=self.remove_overlap.isChecked(),overlap_allowance=self.overlap_allowance.value())
         self.runner.options['minimum_fill_area']=self.minimum_fill_area.value()
         self.runner.options['minimum_hole_area']=self.minimum_hole_area.value()
@@ -433,13 +536,23 @@ class TraceDialog(QDialog):
             self.runner.options['stitch_settings']['underlay']=self.trace_underlay.currentData()
             self.runner.options['stitch_settings'].update({key:control.currentData() for key,control in self.underlay_choices.items()})
         self.status.setText('Tracing in a separate process…')
+        if self.source_corrections_reset:self.status.setText('Artwork changed. Region corrections cleared; tracing with current global settings…')
         self.runner.load(self.path)
+
+    def show_region_reason(self,row,*args):
+        if self.project is None:
+            self.region_reason.setText('Generate a new preview to review region stitch explanations.')
+            return
+        item=self.decisions.item(row,3) if row>=0 else None
+        self.region_reason.setText(item.text() if item else 'Select a region to read its stitch explanation.')
 
     def ready(self,path,info,image):
         self.inspection_geometry={}
         self.aligned_images={};self.inspect_button.setEnabled(False)
         try:
             self.project=Project.loads(info['project'])
+            self.source_fingerprint=info.get('source_fingerprint')
+            self.source_digest=info.get('source_digest')
             original=QImage.fromData(base64.b64decode(info['raster_png']))
             if original.isNull(): raise ValueError('The sampled source preview is damaged.')
             self.original.setPixmap(QPixmap.fromImage(original).scaled(280,280,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation))
@@ -460,17 +573,32 @@ class TraceDialog(QDialog):
                 if routing and row in routing.get('reversed_regions',[]):reason+=' Sewing direction reversed to reduce travel.'
                 for col,value in ((0,f'{row+1} (sew {sewing_order.index(row)+1})'),(2,decision['selected'].title()),(3,reason)):
                     item=QTableWidgetItem(value); item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    item.setToolTip(value)
                     self.decisions.setItem(row,col,item)
                 choice=QComboBox()
                 for title,key in (('Automatic','auto'),('Fill','fill'),('Satin','satin'),('Running','running')): choice.addItem(title,key)
                 choice.setCurrentIndex(choice.findData(decision['requested']))
                 choice.setEnabled(not decision.get('fixed_stitch',False))
                 choice.setProperty('region',row)
+                choice.setAccessibleName(f'Region {row+1} stitch type')
                 choice.currentIndexChanged.connect(self.region_choice_changed)
                 self.decisions.setCellWidget(row,1,choice)
+                spacing=QDoubleSpinBox();spacing.setRange(.2,5);spacing.setDecimals(2);spacing.setSingleStep(.05)
+                spacing.setValue(decision.get('spacing_mm',.45));spacing.setProperty('region',row)
+                spacing.setEnabled(decision['selected'] in {'fill','satin'})
+                spacing.setAccessibleName(f'Region {row+1} stitch spacing')
+                spacing.setToolTip('Overrides global spacing for this region. Regenerate the preview to review density.')
+                spacing.valueChanged.connect(self.region_spacing_changed);self.decisions.setCellWidget(row,5,spacing)
+                angle=QDoubleSpinBox();angle.setRange(0,359.9);angle.setDecimals(1);angle.setSingleStep(15);angle.setSuffix('°')
+                angle.setValue(decision.get('angle_degrees',45)%360);angle.setProperty('region',row)
+                angle.setEnabled(decision['selected']=='fill');angle.setAccessibleName(f'Region {row+1} fill angle')
+                angle.setToolTip('Locks this region’s fill angle during automatic angle selection. Regenerate to review.')
+                angle.valueChanged.connect(self.region_angle_changed);self.decisions.setCellWidget(row,6,angle)
+                self.update_angle_lock_label(row)
                 if decision.get('closed_band'):
                     seam=QDoubleSpinBox();seam.setRange(0,99.9);seam.setDecimals(1);seam.setSingleStep(5);seam.setSuffix('%')
                     seam.setValue(decision.get('seam_percent',0));seam.setProperty('region',row)
+                    seam.setAccessibleName(f'Region {row+1} band seam')
                     seam.setEnabled(decision['requested']!='fill' and not decision.get('fixed_stitch',False))
                     seam.setToolTip('Distance around the outer boundary from its rightmost point, clockwise in the artwork view. Regenerate to move the sewing start or retry a band that fell back to fill. Explicit fill and fixed running outlines do not use this seam.')
                     seam.valueChanged.connect(self.seam_changed);self.decisions.setCellWidget(row,4,seam)
@@ -502,8 +630,12 @@ class TraceDialog(QDialog):
                 splits=stats['branch_splits'];joins=sum(s.get('joins',0) for s in splits);overlapped=sum(s.get('overlapped_joins',0) for s in splits)
                 detail+=f" Split {len(splits)} branching regions; {overlapped} of {joins} joins overlapped. Inspect joins."
             if self.quality: detail+=f" Conversion checks: {self.quality['review_regions']} regions to review."
+            fallbacks=sum(bool(d.get('fallback')) for d in decisions)
+            if fallbacks:detail+=f' Fill retained for {fallbacks} unsuitable column regions. Select those regions to review the explanations.'
+            if self.source_corrections_reset:detail+=' Artwork changed; previous region corrections were cleared.'
             self.status.setText(f"{len(self.project.objects)} editable regions · {info['stitches']:,} stitches · {stats['resolution'][0]} × {stats['resolution'][1]} sampled pixels. {detail} Inspect small details and stitch routing before sewing.")
             self.buttons.button(QDialogButtonBox.StandardButton.Ok).setEnabled(True)
+            self.show_region_reason(self.decisions.currentRow())
             from copy import deepcopy
             self.review_snapshot=(deepcopy(info),image.copy());self.review_button.setEnabled(True)
         except (KeyError,ValueError) as exc:
@@ -518,12 +650,75 @@ class TraceDialog(QDialog):
         choice=self.sender()
         self.override_region(choice.property('region'),choice.currentData())
 
+    def update_angle_lock_label(self,row):
+        widget=self.decisions.cellWidget(row,6)
+        if widget is None:return
+        locked=str(row) in self.region_angles
+        widget.setSuffix('° · locked' if locked else '°')
+        widget.setAccessibleDescription('Fill angle locked; automatic angle search preserves this direction.' if locked else
+            'Fill angle unlocked; automatic angle search may change this direction. Editing the value locks it.')
+
+    def lock_region_angle(self):
+        row=self.decisions.currentRow()
+        widget=self.decisions.cellWidget(row,6) if row>=0 else None
+        if widget is None or not widget.isEnabled():
+            self.status.setText('Select a generated fill region to lock its displayed angle.')
+            return
+        self.region_angles[str(row)]=widget.value()
+        self.update_angle_lock_label(row)
+        self.invalidate_preview()
+        self.status.setText(f'Region {row+1} fill angle locked at {widget.value():g}°. Generate a preview to review.')
+
+    def unlock_region_angle(self):
+        row=self.decisions.currentRow();key=str(row)
+        if row<0 or key not in self.region_angles:
+            self.status.setText('Select a region with a fill-angle lock to release it.')
+            return
+        del self.region_angles[key]
+        self.update_angle_lock_label(row)
+        self.invalidate_preview()
+        self.status.setText(f'Region {row+1} fill angle unlocked. Generate a preview to use automatic or default angles. Other corrections are retained.')
+
+    def reset_region_angles(self):
+        self.region_angles.clear();self.invalidate_preview();self.decisions.setRowCount(0)
+        self.status.setText('Region angle locks cleared. Generate a preview to use automatic or default angles.')
+
+    def reset_region_corrections(self):
+        row=self.decisions.currentRow()
+        if row<0:return
+        key=str(row)
+        for overrides in (self.overrides,self.seams,self.region_spacing,self.region_angles):
+            overrides.pop(key,None)
+        self.invalidate_preview()
+        for column in (1,4,5,6):self.decisions.removeCellWidget(row,column)
+        for column,text in ((2,'Pending'),(3,'Corrections reset. Generate a preview.')):
+            item=QTableWidgetItem(text);item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.decisions.setItem(row,column,item)
+        self.status.setText(f'Region {row+1} corrections cleared. Generate a preview to use the current global settings. Other regions keep their corrections.')
+
+    def region_angle_changed(self):
+        widget=self.sender();self.region_angles[str(widget.property('region'))]=widget.value()
+        self.update_angle_lock_label(widget.property('region'))
+        self.invalidate_preview()
+        self.status.setText('Region fill angle changed. Generate a preview to review the stitch direction.')
+
+    def reset_region_spacing(self):
+        self.region_spacing.clear();self.invalidate_preview();self.decisions.setRowCount(0)
+        self.status.setText("Region spacing reset. Generate a preview to use the global settings.")
+
+    def region_spacing_changed(self):
+        widget=self.sender();self.region_spacing[str(widget.property('region'))]=widget.value()
+        self.invalidate_preview()
+        self.status.setText('Region spacing changed. Generate a preview to review the new density.')
+
     def seam_changed(self):
         widget=self.sender();self.seams[str(widget.property('region'))]=widget.value()
         self.invalidate_preview()
         self.status.setText('Band seam changed. Generate a preview to review the new sewing start.')
 
     def failed(self,path,message):
+        if message.startswith('Artwork changed'):
+            self.invalidate();self.source_fingerprint=None;self.source_digest=None
         self.inspection_geometry={}
         self.aligned_images={};self.inspect_button.setEnabled(False)
         self.review_snapshot=None;self.review_button.setEnabled(False)

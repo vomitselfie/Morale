@@ -164,6 +164,8 @@ def _affine_object(source, affine, sx, sy, rotation):
     result.rotation = 0
     result.motif_reflected ^= result.flip_x ^ result.flip_y
     result.flip_x = result.flip_y = False
+    from .ripple_fill import preserve_center
+    preserve_center(source,result,affine)
     drop_lettering(result)
     angle = math.radians(source.angle)
     result.angle = (math.degrees(math.atan2(sy*math.sin(angle), sx*math.cos(angle)))+rotation+180)%360-180

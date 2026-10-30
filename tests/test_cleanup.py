@@ -122,3 +122,46 @@ def test_cleaned_generated_design_exports_in_all_formats(tmp_path,extension):
     reference=[s for s in source if s.command=='stitch']
     assert (min(s.y for s in stitches),max(s.y for s in stitches))==pytest.approx(
         (min(s.y for s in reference),max(s.y for s in reference)),abs=.15)
+
+
+def test_cleanup_keeps_shallow_detour_when_shortcut_crosses_cutout():
+    from morale.pattern_fill import RegionClip
+    # The detour's 0.005 mm deviation is below the default geometric tolerance.
+    # Its direct replacement crosses a narrow hole, so tolerance alone is insufficient.
+    region=RegionClip([[(-1,-1),(2,-1),(2,1),(-1,1)],
+                       [(.095,-.001),(.105,-.001),(.105,.001),(.095,.001)]])
+    source=[Stitch(-.1,0,'jump'),Stitch(0,0),Stitch(.1,.005),Stitch(.2,0)]
+    assert len(short_stitch_cleanup(source,.2,3))==3
+    def allowed(a,b):
+        return sum(math.dist(start,end) for start,end in region.segment(a,b))>=math.dist(a,b)-1e-8
+    assert short_stitch_cleanup(source,.2,3,segment_allowed=allowed)==source
+
+
+@pytest.mark.parametrize('stitch_type',['contour','pattern'])
+def test_clipped_fill_cleanup_never_shortcuts_a_cutout(monkeypatch,stitch_type):
+    import morale.engine as engine
+    import morale.pattern_fill as pattern
+    path=[(-.1,0),(0,0),(.1,.005),(.2,0)]
+    obj=DesignObject(kind='compound',width=20,height=20,stitch_type=stitch_type,underlay=False,
+        minimum_stitch=.2,contours=[[[-.5,-.5],[.5,-.5],[.5,.5],[-.5,.5]],
+                                  [[.00475,-.00005],[.00525,-.00005],[.00525,.00005],[.00475,.00005]]])
+    if stitch_type=='contour':
+        monkeypatch.setattr(engine,'contour_fill',lambda *args:[Stitch(*p,'jump' if i==0 else 'stitch') for i,p in enumerate(path)])
+    else:monkeypatch.setattr(pattern,'pattern_fill_paths',lambda _:iter([path]))
+    assert [(s.x,s.y) for s in generate(Project(objects=[obj]))[0].stitches]==path
+
+
+@pytest.mark.parametrize('stitch_type',['contour','pattern'])
+@pytest.mark.parametrize('minimum',[.1,.5,1])
+def test_real_clipped_fill_cleanup_preserves_entire_segments(stitch_type,minimum):
+    from morale.pattern_fill import RegionClip
+    obj=DesignObject(kind='compound',width=20,height=20,stitch_type=stitch_type,underlay=False,
+        minimum_stitch=minimum,spacing=1,contours=[[[-.5,-.5],[.5,-.5],[.5,.5],[-.5,.5]],
+                                                [[-.3,-.1],[.2,-.1],[.2,.2],[-.3,.2]]])
+    stitches=generate(Project(objects=[obj]))[0].stitches;region=RegionClip(obj.rings())
+    assert stitches
+    for a,b in zip(stitches,stitches[1:]):
+        if b.command=='stitch':
+            start,end=(a.x,a.y),(b.x,b.y)
+            covered=sum(math.dist(p,q) for p,q in region.segment(start,end))
+            assert covered==pytest.approx(math.dist(start,end),abs=1e-8)

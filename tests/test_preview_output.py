@@ -53,3 +53,17 @@ def test_invalid_result_emits_failure_and_cleans_temporary_directory(tmp_path):
     failed=[];ready=[];runner.failed.connect(lambda *args:failed.append(args));runner.ready.connect(lambda *args:ready.append(args))
     runner.finished(0,QProcess.ExitStatus.NormalExit)
     assert len(failed)==1 and not ready and not root.exists() and runner.path is None
+
+
+@pytest.mark.parametrize('fingerprint',[None,[],[1],[1,2,3],[-1,2],[True,2],[1,'2'],{'size':1}])
+def test_invalid_artwork_fingerprint_rejected(tmp_path,fingerprint):
+    info=output(tmp_path);info['source_fingerprint']=fingerprint
+    (tmp_path/'preview.json').write_text(json.dumps(info))
+    with pytest.raises(ValueError,match='artwork source fingerprint'):read_preview_result(tmp_path)
+
+
+def test_artwork_fingerprint_is_distinct_from_generated_preview_file(tmp_path):
+    info=output(tmp_path);info['source_fingerprint']=[123,-100]
+    (tmp_path/'preview.json').write_text(json.dumps(info))
+    result,_=read_preview_result(tmp_path)
+    assert result['source_fingerprint']==[123,-100]

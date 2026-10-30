@@ -47,13 +47,30 @@ def import_machine(path):
         if extension=='.vp3':
             from .vp3_positions import read_vp3
             pattern=read_vp3(path)
-        else:pattern = emb.read(str(path),settings={'trim_distance':None,'trims':False,'clipping':False}) if extension=='.jef' else emb.read(str(path))
+        else:pattern = emb.read(str(path),settings={'trim_distance':None,'trim_at':None,'trims':False,'clipping':False}) if extension in {'.jef','.dst'} else emb.read(str(path))
         if extension=='.jef' and pattern is not None:decode_jef_trims(pattern)
+        if extension=='.dst' and pattern is not None:
+            decode_dst_trims(pattern)
+            pattern.interpolate_trims(3,None,True)
     except Exception as exc:
         raise ValueError(f"The {extension.upper()} reader could not decode this file: {exc}") from exc
     if pattern is None:
         raise ValueError("The file could not be decoded.")
     return from_pattern(pattern, path.stem, extension)
+
+
+def decode_dst_trims(pattern):
+    """Recognize the writer's +2/-4/+2 encoder-unit trim wiggle."""
+    result=[];previous=(0,0);index=0
+    while index<len(pattern.stitches):
+        rows=pattern.stitches[index:index+3];x,y=previous
+        expected=((x+2,y+2),(x-2,y-2),(x,y))
+        if len(rows)==3 and all(row[2]&emb.COMMAND_MASK==emb.JUMP and tuple(row[:2])==point for row,point in zip(rows,expected)):
+            result.append([x,y,emb.TRIM]);index+=3;continue
+        row=pattern.stitches[index];result.append(row)
+        if row[2]&emb.COMMAND_MASK in {emb.STITCH,emb.JUMP}:previous=tuple(row[:2])
+        index+=1
+    pattern.stitches=result
 
 
 def decode_jef_trims(pattern):
@@ -83,6 +100,7 @@ def from_pattern(pattern, name="Imported design", source_format=""):
         raise ValueError("File exceeds the 250,000-command import limit.")
     inverse = {value: key for key, value in COMMANDS.items()}
     notes = ["Imported stitches retain their stitch count when resized; density is not regenerated."]
+    if source_format=='.dst':notes.append('The DST reader infers trims from runs of at least three jump records. These are not dedicated trim commands; physical cutting depends on the machine and its settings.')
     if source_format=='.jef':notes.append('JEF runs of three stationary jumps are interpreted as trims. Ordinary travel distance does not imply a trim.')
     project = Project(name[:200])
     thread_index = 0
@@ -231,6 +249,18 @@ def export_machine(project, path, blocks=None, *, pes_version=6):
         # writing so header/thread-table counts agree with the encoded events;
         # VP3 otherwise ignores STOP entirely.
         pattern.interpolate_stop_as_duplicate_color()
+    if path.suffix.lower() in {'.tbf','.jef'}:
+        # Stationary jumps encode trims in TBF and groups of three in JEF.
+        # Remove idle travel so it cannot create unintended cutting commands.
+        # Compare quantized positions as the writer does.
+        position=(0,0);rows=[]
+        for row in pattern.stitches:
+            command=row[2]&emb.COMMAND_MASK
+            point=(position[0]+round(row[0]-position[0]),position[1]+round(row[1]-position[1]))
+            if command==emb.JUMP and point==position:continue
+            rows.append(row)
+            if command in {emb.STITCH,emb.JUMP}:position=point
+        pattern.stitches=rows
     # The library chooses a writer by extension. Stage before replacing a file.
     temporary = None
     try:
@@ -246,7 +276,11 @@ def export_machine(project, path, blocks=None, *, pes_version=6):
         if path.suffix.lower() in {'.pes','.pec','.vp3'}:
             from .writer_text import write
             write(pattern,temporary,path.suffix.lower(),settings)
-        else:emb.write(pattern, str(temporary),settings)
+        else:
+            if path.suffix.lower() in {'.exp','.dst','.jef','.u01','.xxx'}:
+                from .writer_controls import preserve_explicit_trims
+                pattern=preserve_explicit_trims(pattern)
+            emb.write(pattern, str(temporary),settings)
         os.replace(temporary, path)
     finally:
         if temporary is not None:
@@ -266,6 +300,7 @@ def export_summary(result):
 def export_notes(extension, pes_version=6):
     notes = ["Format writers may add travel, trims, or zero-length stitches. Review the exported design in the target machine's preview."]
     notes.append('Sewn spans exceeding the format limit are subdivided along their original path; this adds needle positions in the exported file.')
+    if extension=='.dst':notes.append('Explicit trims use a three-jump, zero-displacement sequence. DST has no dedicated trim command; cutting depends on the machine and its settings.')
     if extension=='.jef':notes.append('Explicit trims are encoded as three stationary jumps. Trim execution depends on the Janome machine and its settings.')
     if extension in {".dst", ".exp", ".u01"}:
         notes.append("This file does not retain RGB thread colors; export a CSV thread chart.")
@@ -276,9 +311,10 @@ def export_notes(extension, pes_version=6):
     if extension in {".pes", ".pec"}:
         notes.append('The PEC machine label is limited to eight ASCII characters; PES v6 extended names and thread text use byte-counted UTF-8 fields (255 bytes per field).')
         notes.append("Same-color thread changes may be decoded as operator stops by PES/PEC readers.")
-        notes.append("PES/PEC encoding may add sewn points at jump landings, changing the decoded stitch count and sewn bounds.")
+        notes.append("Morale preserves explicit trims after thread changes and does not insert a synthetic stitch at a jump landing. Review the reopened-file comparison for other encoding differences.")
     if extension == ".vp3":
-        notes.append("The installed VP3 writer omits explicit jump records. Its decoded travel paths can differ from Morale's preview.")
+        notes.append("Morale writes VP3 travel using long-form movement records and preserves explicit trims. The writer adds a terminal trim; review the reopened control counts.")
+    if extension=='.tbf':notes.append('TBF normalization can move a trim before a needle change. Review thread-relative control order even when trim counts and positions agree.')
     if extension in {".tbf", ".u01"}:
         notes.append("Needle assignments are generated by the writer. Check them against the machine setup.")
     return notes

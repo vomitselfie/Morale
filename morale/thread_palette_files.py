@@ -65,3 +65,17 @@ def write_palette(path,entries):
     finally:
         if temporary is not None:temporary.unlink(missing_ok=True)
     return {'colors':len(entries),'format':extension,'metadata_fields':['description','chart'] if extension=='.inf' else []}
+
+
+def design_palette(blocks):
+    """Native thread runs; explicit pauses do not create new palette entries."""
+    from .catalogs import ThreadEntry
+    from .threads import thread_key
+    entries=[];previous=None
+    for block in blocks:
+        if not block.stitches:continue
+        key=thread_key(block)
+        if key!=previous or block.color_break:
+            entries.append(ThreadEntry(block.color,dict(block.thread)))
+        previous=key
+    return entries

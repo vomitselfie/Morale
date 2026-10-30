@@ -342,7 +342,7 @@ class MainWindow(WindowLayoutMixin, FileWorkflowsMixin, ArtworkMixin, EditingMix
             for index in range(self.stitch_type.count()):
                 mode = self.stitch_type.itemData(index)
                 # Lettering offers planned satin columns alongside fill and running.
-                enabled = mode in ({"manual"} if obj.kind == "stitches" else {"satin"} if obj.kind == "satin" else {"running", "triple", "motif"} if obj.kind == "path" else {"satin"} if obj.lettering.get("embroidery_font") else {"satin", "fill", "running", "triple"} if obj.lettering else {"fill", "contour", "running", "triple", "motif", "pattern"})
+                enabled = mode in ({"manual"} if obj.kind == "stitches" else {"satin"} if obj.kind == "satin" else {"running", "triple", "motif"} if obj.kind == "path" else {"satin"} if obj.lettering.get("embroidery_font") else {"satin", "fill", "running", "triple"} if obj.lettering else {"fill", "contour", "ripple", "running", "triple", "motif", "pattern"})
                 self.stitch_type.model().item(index).setEnabled(enabled)
             self.fields["stitch_length"].setEnabled(obj.kind != "stitches")
             self.fields["minimum_stitch"].setEnabled(obj.kind != "stitches")
@@ -362,17 +362,20 @@ class MainWindow(WindowLayoutMixin, FileWorkflowsMixin, ArtworkMixin, EditingMix
             self.fields["pull_compensation"].setEnabled(obj.stitch_type in {"fill", "satin"})
             self.underlay.setChecked(obj.underlay)
             self.visible.setChecked(obj.visible)
-            self.fields["spacing"].setEnabled(obj.stitch_type in {"fill", "contour", "satin"})
+            self.fields["spacing"].setEnabled(obj.stitch_type in {"fill", "contour", "ripple", "satin"})
+            for key in ("ripple_center_x","ripple_center_y"):
+                self.fields[key].setEnabled(obj.stitch_type=="ripple")
+                self.property_form.setRowVisible(self.fields[key],obj.stitch_type=="ripple")
             self.density_gradient.setChecked(obj.density_gradient)
             self.gradient_reverse.setChecked(obj.gradient_reverse)
             for widget in (self.density_gradient,self.gradient_reverse,self.fields["gradient_end_spacing"]):
                 self.property_form.setRowVisible(widget,obj.stitch_type=="fill")
                 widget.setEnabled(obj.stitch_type=="fill" and (widget is self.density_gradient or obj.density_gradient))
-            self.fields["angle"].setEnabled(obj.stitch_type in {"fill","pattern"} or obj.stitch_type == "contour" and obj.underlay and obj.underlay_style in {"sparse","edge_sparse"})
-            self.underlay.setEnabled(obj.stitch_type in {"fill", "contour", "satin"})
+            self.fields["angle"].setEnabled(obj.stitch_type in {"fill","pattern"} or obj.stitch_type in {"contour","ripple"} and obj.underlay and obj.underlay_style in {"sparse","edge_sparse"})
+            self.underlay.setEnabled(obj.stitch_type in {"fill", "contour", "ripple", "satin"})
             self.underlay.setText("Enable underlay")
             self.underlay_style.setCurrentIndex(self.underlay_style.findData(obj.underlay_style))
-            active = obj.underlay and obj.stitch_type in {"fill","contour","satin"}
+            active = obj.underlay and obj.stitch_type in {"fill","contour","ripple","satin"}
             self.underlay_style.setEnabled(active)
             allowed = {"auto","zigzag","center_zigzag"} if obj.kind == "satin" else {"auto","edge","sparse","edge_sparse"}
             for index in range(self.underlay_style.count()):
@@ -502,6 +505,7 @@ class MainWindow(WindowLayoutMixin, FileWorkflowsMixin, ArtworkMixin, EditingMix
         self.reset_playback()
         self.canvas.set_mode(mode)
         self.mode_actions[mode].setChecked(True)
+        self.canvas.setFocus(Qt.FocusReason.OtherFocusReason)
         self.statusBar().showMessage("Click points, then Enter to finish · Escape to cancel" if mode in {"polygon", "path"} else "Drag inside the hoop to draw" if mode != "select" else "Select and drag objects · Edit precise dimensions in the properties panel")
         if mode == "satin":
             self.statusBar().showMessage("Click left, then right rail points for each pair. Add at least two pairs, then Enter. Escape cancels.")
@@ -590,6 +594,16 @@ class MainWindow(WindowLayoutMixin, FileWorkflowsMixin, ArtworkMixin, EditingMix
         self.canvas.unit = unit
         self.canvas.update()
         self.statusBar().showMessage(f"Display units: {unit}. Project geometry stays in millimeters; point and stitch dialogs label their own units.")
+
+    def add_layout_guide(self,axis,position):
+        from .guides import validate_guides
+        try:guides=validate_guides([*self.project.guides,{'axis':axis,'position':position}])
+        except ValueError as exc:self.error(str(exc));return
+        self.commit(lambda:setattr(self.project,'guides',guides))
+
+    def set_guide_view(self,key,checked):
+        setattr(self.canvas,key,checked)
+        self.canvas.update()
 
     def toggle_rulers(self, checked):
         self.canvas.show_rulers = checked
@@ -733,7 +747,10 @@ class MainWindow(WindowLayoutMixin, FileWorkflowsMixin, ArtworkMixin, EditingMix
         self.checkpoint()
 
     def help(self):
-        QMessageBox.information(self, "Make your first design", "Choose a shape tool and drag in the hoop. For polygon/path and satin rails, click points and press Enter. Escape cancels. Scroll zooms; middle-drag pans.\n\nEdit → Add lettering creates editable system-font lettering, sewn as satin columns by default. Edit lettering changes text/font/height/spacing. Saved contours remain usable without the font. Choose straight, curved, or three-letter monogram layout. Purpose-digitized embroidery fonts remain in development.\n\nSelect an object to set size, thread, stitches, and finishing. Edit path / satin points changes coordinates; Edit individual stitches permits command editing. Applying stitch edits converts that object to manual stitches; Undo restores geometry.\n\nPreview, save a .morale project, and export a machine format. File also offers machine import, batch conversion, CSV charts and samplers. View provides units, custom fields and rulers.\n\nFile → Import SVG artwork creates editable fills and running outlines. Pull compensation in object properties extends fill and satin stitches per side. Advanced routing remains in development. Physical sew-out validation is still required.")
+        from .help_dialog import GettingStartedDialog
+        dialog=GettingStartedDialog(self)
+        dialog.exec()
+        dialog.deleteLater()
 
     def closeEvent(self, event):
         if self.confirm_discard():
@@ -758,6 +775,9 @@ class MainWindow(WindowLayoutMixin, FileWorkflowsMixin, ArtworkMixin, EditingMix
 
 
 def main():
+    if len(sys.argv)>1 and sys.argv[1]=='--coupon-worker':
+        from .coupon_worker import worker_main
+        raise SystemExit(worker_main(sys.argv[2:]))
     if len(sys.argv)>1 and sys.argv[1]=='--library-search-worker':
         from .library_search import worker_main
         sys.exit(worker_main(sys.argv[2:]))

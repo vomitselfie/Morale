@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (QFileDialog, QMessageBox, QInputDialog, QProgress
     QListWidget, QDialogButtonBox)
 from .model import Project, demo_project, satin_sample
 from .hoop_dialog import HoopDialog as MultiHoopDialog
-from .threads import write_chart
+from .threads import save_chart
 from .reference import decode_reference
 from .templates import TemplateDialog, export_template
 from .comparison import ComparisonDialog
@@ -105,6 +105,17 @@ class FileWorkflowsMixin:
         except (OSError,ValueError) as exc:
             self.error(str(exc))
 
+    def export_sewout_worksheet(self):
+        if not self.preview_available():return
+        path,_=QFileDialog.getSaveFileName(self,'Export sewout worksheet','sewout-worksheet.pdf','PDF document (*.pdf)')
+        if not path:return
+        if not Path(path).suffix:path+='.pdf'
+        try:
+            from .coupons import project_evaluation_pdf
+            project_evaluation_pdf(self.project,path)
+            self.statusBar().showMessage('Exported blank sewout worksheet with the current design settings.')
+        except (OSError,ValueError) as exc:self.error(str(exc))
+
     def new(self):
         if self.confirm_discard():
             self.replace_project(Project())
@@ -116,6 +127,59 @@ class FileWorkflowsMixin:
     def load_satin_sample(self):
         if self.confirm_discard():
             self.replace_project(satin_sample())
+
+    def load_fabric_sample(self):
+        self.load_sewout_coupon('fabric-profiles')
+
+    def choose_sewout_coupon(self):
+        from .coupons import COUPONS
+        choices={key.replace('-',' ').capitalize():key for key in COUPONS}
+        label,accepted=QInputDialog.getItem(self,'Load sewout coupon','Calibration design (100 × 100 mm field)',list(choices),0,False)
+        if accepted and label in choices:self.load_sewout_coupon(choices[label])
+
+    def export_sewout_coupon_pack(self):
+        from .coupons import COUPONS
+        from .coupon_worker import export_coupon
+        choices={key.replace('-',' ').capitalize():key for key in COUPONS}
+        label,accepted=QInputDialog.getItem(self,'Export sewout test pack',
+            'Standard coupon (machine files, placement and evaluation forms)',list(choices),0,False)
+        if not accepted or label not in choices:return
+        parent=QFileDialog.getExistingDirectory(self,'Choose a folder for the new sewout pack')
+        if not parent:return
+        destination=Path(parent)/choices[label]
+        try:
+            report=export_coupon(choices[label],destination,self)
+            if report is None:
+                self.statusBar().showMessage(f'Sewout export cancelled. Any unfinished files are in {destination}.')
+                return
+        except FileExistsError:
+            self.error(f'A pack already exists at {destination}. Choose another folder to keep the existing results.')
+            return
+        except (OSError,ValueError) as exc:
+            self.error(f'Could not finish the sewout pack: {exc}\nAny files at {destination} are incomplete. Create a new pack before sewing.')
+            return
+        from .export_verify import verification_text
+        details='\n\n'.join(verification_text(result,name) for name,result in report['export_verification'].items())
+        self.statusBar().showMessage(f'Exported {label} sewout pack to {destination}')
+        message=QMessageBox(self)
+        message.setWindowTitle('Sewout test pack exported')
+        message.setText(f'Saved {label} to {destination}')
+        review=[name for name,result in report['export_verification'].items() if not result.get('verified')]
+        summary=('Export checks need review: '+', '.join(review)+'. ') if review else 'All exported files passed software checks. '
+        message.setIcon(QMessageBox.Icon.Warning if review else QMessageBox.Icon.Information)
+        message.setInformativeText(summary+'Includes PES, EXP and DST files, an editable project, placement and evaluation PDFs, and blank machine/material records. Record your machine, hoop and materials before sewing.')
+        message.setDetailedText(details)
+        message.exec()
+
+    def load_sewout_coupon(self,name):
+        if not self.confirm_discard():return
+        from .coupons import build_project,COUPONS
+        try:
+            if name not in COUPONS:raise ValueError('Unknown sewout coupon.')
+            project,_,_,guidance=build_project(name)
+            self.replace_project(project)
+            self.statusBar().showMessage(guidance)
+        except ValueError as exc:self.error(str(exc))
 
     def open(self):
         if not self.confirm_discard():
@@ -294,13 +358,23 @@ class FileWorkflowsMixin:
     def thread_chart(self):
         if not self.preview_available():
             return
-        path, _ = QFileDialog.getSaveFileName(self, "Export thread sequence", "threads.csv", "Thread chart (*.csv)")
+        path, selected = QFileDialog.getSaveFileName(self, "Export thread sequence", "threads.csv", "Thread chart (*.csv);;INF palette (*.inf);;EDR palette (*.edr)")
         if path:
             try:
-                with open(path, "w", newline="", encoding="utf-8") as f:
-                    write_chart(self.project, self.blocks, f)
-                self.statusBar().showMessage(f"Thread chart saved · {path}")
-            except OSError as exc:
+                extension='.inf' if '*.inf' in selected else '.edr' if '*.edr' in selected else '.csv'
+                target=Path(path)
+                if target.suffix.lower()!=extension:
+                    target=target.with_suffix(extension)
+                    if not self.confirm_replacement(target):return
+                if extension=='.csv':
+                    save_chart(self.project,self.blocks,target)
+                else:
+                    from .thread_palette_files import design_palette,write_palette
+                    result=write_palette(target,design_palette(self.blocks))
+                    detail='Descriptions and chart names retained.' if extension=='.inf' else 'RGB colors only; metadata omitted.'
+                    QMessageBox.information(self,'Design palette saved',f"{result['colors']} native thread runs saved in sewing order. {detail}\nPauses do not add entries. Machine formats may encode pauses as extra thread changes; this palette is not automatically paired with a machine file.")
+                self.statusBar().showMessage(f"Thread sequence saved · {target}")
+            except (OSError,ValueError) as exc:
                 self.error(str(exc))
 
     def checkpoint(self):

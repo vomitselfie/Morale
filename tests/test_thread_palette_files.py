@@ -120,3 +120,38 @@ def test_native_export_uses_filtered_display_order(tmp_path,monkeypatch):
         assert [entry.color for entry in read_catalog(path)]==expected
         assert messages and 'metadata omitted' in messages[-1]
     finally:dialog.reject()
+
+
+def test_design_palette_preserves_thread_runs_and_explicit_breaks():
+    from morale.engine import Block,Stitch
+    from morale.thread_palette_files import design_palette
+    def block(color,metadata=None,color_break=False):
+        return Block('id',color,[Stitch(0,0,'stitch')],color_break,metadata or {})
+    blocks=[block('#ff0000'),block('#ff0000'),block('#0000ff'),block('#ff0000'),
+            block('#ff0000',color_break=True),block('#ff0000',{'description':'Different thread'})]
+    blocks[0].stitches.append(Stitch(0,0,'stop'))
+    entries=design_palette(blocks)
+    assert [e.color for e in entries]==['#ff0000','#0000ff','#ff0000','#ff0000','#ff0000']
+    assert entries[-1].metadata=={'description':'Different thread'}
+    entries[-1].metadata['description']='Edited'
+    assert blocks[-1].thread['description']=='Different thread'
+
+
+@pytest.mark.parametrize('extension',['inf','edr'])
+def test_native_design_sequence_palette_export(tmp_path,monkeypatch,extension):
+    from PySide6.QtWidgets import QApplication,QFileDialog,QMessageBox
+    from morale.app import MainWindow
+    from morale.thread_palette_files import design_palette
+    app=QApplication.instance() or QApplication([])
+    path=tmp_path/'threads.csv';messages=[]
+    monkeypatch.setattr(QFileDialog,'getSaveFileName',lambda *a:(str(path),f'Palette (*.{extension})'))
+    monkeypatch.setattr(QMessageBox,'information',lambda *a:messages.append(a[-1]))
+    window=MainWindow()
+    try:
+        before=window.project.dumps();expected=design_palette(window.blocks)
+        window.thread_chart()
+        restored=read_catalog(path.with_suffix('.'+extension))
+        assert [e.color for e in restored]==[e.color for e in expected]
+        assert window.project.dumps()==before and not path.exists()
+        assert 'Pauses do not add entries' in messages[-1]
+    finally:window.saved=window.project.dumps();window.close()

@@ -37,7 +37,8 @@ def test_long_measurements_paginate_without_losing_last_line(tmp_path,preview):
     assert len(re.findall(rb'/Type /Page\b',path.read_bytes()))>4
     if shutil.which('pdftotext'):
         text=subprocess.check_output(['pdftotext',str(path),'-'],text=True)
-        assert 'Review detail 249' in text
+        for index in range(250):
+            assert text.count(f'Review detail {index}:')==1
 
 def test_write_failure_preserves_existing_pdf_and_removes_temporary_file(tmp_path,preview,monkeypatch):
     import morale.conversion_report as module
@@ -84,3 +85,57 @@ def test_underlay_settings_survive_worker_and_pdf(tmp_path):
         text=unicodedata.normalize('NFKC',text)
         assert 'Fill underlay: Edge run and sparse fill' in text
         assert 'support spacing 1.5 mm' in text and 'inset 0.4 mm' in text
+
+
+def test_wrapped_measurements_preserve_every_word_across_pages(tmp_path,preview):
+    info,image=preview
+    tokens=[f'marker{i:05d}' for i in range(2400)]
+    info['trace_stats']['quality']['artwork_notes']=[' '.join(tokens[i:i+80]) for i in range(0,len(tokens),80)]
+    path=tmp_path/'wrapped.pdf';save_conversion_review(path,'art.svg',info,image)
+    assert len(re.findall(rb'/Type /Page\b',path.read_bytes()))>4
+    if shutil.which('pdftotext'):
+        text=subprocess.check_output(['pdftotext',str(path),'-'],text=True)
+        assert re.findall(r'marker\d{5}',text)==tokens
+
+
+def test_pdf_maps_region_settings_to_reordered_sewing_positions(tmp_path):
+    source=tmp_path/'ordered.svg'
+    source.write_text('<svg width="100" height="40"><rect x="5" y="10" width="20" height="20" fill="red"/><rect x="45" y="10" width="20" height="20" fill="red"/></svg>')
+    output=tmp_path/'worker';output.mkdir()
+    options={'width':100,'stitch_mode':'fill','region_spacing':{'0':1.2,'1':.4},
+             'region_angles':{'0':17,'1':90},'reduce_travel':True}
+    assert worker_main([str(source),str(output),json.dumps(options)])==0
+    info=json.loads((output/'preview.json').read_text());before=deepcopy(info)
+    assert info['trace_stats']['sewing_order']==[1,0]
+    path=tmp_path/'ordered.pdf'
+    save_conversion_review(path,source.name,info,QImage(str(output/'preview.png')))
+    assert info==before
+    if shutil.which('pdftotext'):
+        import unicodedata
+        text=unicodedata.normalize('NFKC',subprocess.check_output(['pdftotext',str(path),'-'],text=True))
+        text=' '.join(text.split())
+        assert 'Artwork region 1 (sew 2): fill' in text
+        assert 'Artwork region 2 (sew 1): fill' in text
+        first,second=text.split('Artwork region 1 (sew 2):',1)[1].split('Artwork region 2 (sew 1):',1)
+        assert 'Spacing: 1.2 mm. Fill angle: 17 degrees.' in first
+        assert 'Spacing: 0.4 mm. Fill angle: 90 degrees.' in second
+
+
+def test_review_identifies_captured_artwork_after_source_changes(tmp_path):
+    import hashlib
+    source=tmp_path/'private-source.svg'
+    source.write_text('<svg width="40" height="40"><rect x="5" y="5" width="30" height="30" fill="red"/></svg>')
+    digest=hashlib.sha256(source.read_bytes()).hexdigest()
+    output=tmp_path/'worker';output.mkdir()
+    assert worker_main([str(source),str(output),'{}'])==0
+    info=json.loads((output/'preview.json').read_text())
+    assert info['source_digest']==digest
+    source.write_text('changed after conversion')
+    path=tmp_path/'review.pdf'
+    save_conversion_review(path,str(source),info,QImage(str(output/'preview.png')))
+    if shutil.which('pdftotext'):
+        text=subprocess.check_output(['pdftotext',str(path),'-'],text=True)
+        assert 'Source artwork SHA-256 (at conversion):' in text
+        assert digest in text
+        assert hashlib.sha256(source.read_bytes()).hexdigest() not in text
+        assert str(tmp_path) not in text

@@ -79,6 +79,8 @@ def edit_controls(source, controls):
     candidate.rotation = 0
     candidate.motif_reflected ^= candidate.flip_x ^ candidate.flip_y
     candidate.flip_x = candidate.flip_y = False
+    from .ripple_fill import preserve_center
+    preserve_center(source,candidate)
     return Project.loads(Project(objects=[candidate]).dumps()).objects[0]
 
 

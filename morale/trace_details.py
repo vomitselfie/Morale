@@ -1,7 +1,7 @@
 """Optional physical-area filtering of filled artwork components."""
 from copy import deepcopy
 import math
-from PySide6.QtGui import QTransform
+from PySide6.QtGui import QTransform,QPainterPath,QPainterPathStroker
 from .model import Project
 from .auto_digitize import outline_path,area
 from .geometry import replace_contours
@@ -59,6 +59,18 @@ def fill_small_holes(project,minimum_area=0):
     result=deepcopy(project);changes=[];occupied_holes=0
     protected={i:outline_path(obj.rings()) for i,obj in enumerate(project.objects)
                if minimum_area>0 and obj.visible and obj.stitch_type=='fill'}
+    line_details=[]
+    if minimum_area>0:
+        for obj in project.objects:
+            if not obj.visible or obj.stitch_type not in {'running','triple'}:continue
+            path=QPainterPath()
+            for ring in obj.rings():
+                if not ring:continue
+                path.moveTo(*ring[0])
+                for point in ring[1:]:path.lineTo(*point)
+                if obj.kind!='path':path.closeSubpath()
+            stroker=QPainterPathStroker();stroker.setWidth(1e-6)
+            line_details.append(stroker.createStroke(path))
     for index,source in enumerate(project.objects):
         if not (minimum_area>0 and source.visible and source.stitch_type=='fill' and source.kind in {'compound','polygon','rectangle','ellipse','leaf'} and not(source.stop_after or source.color_break or source.stage_note or source.group_id)):
             continue
@@ -84,6 +96,7 @@ def fill_small_holes(project,minimum_area=0):
                 bounds=void_shape.boundingRect()
                 occupied=any(j!=index and bounds.intersects(other.boundingRect()) and area(void_shape.intersected(other))>1e-8
                              for j,other in protected.items())
+                occupied=occupied or any(void_shape.intersects(detail) for detail in line_details)
                 if occupied:
                     occupied_holes+=1;continue
                 selected.append(i);void_areas[i]=void

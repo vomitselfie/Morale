@@ -65,7 +65,7 @@ def test_dialogs_opened_from_the_window_are_named_and_focusable(monkeypatch,tmp_
         polygon=DesignObject(name='Leaf',kind='polygon',stitch_type='running',points=[[-.5,-.5],[.5,-.5],[0,.5]])
         window.replace_project(Project(objects=[polygon]));window.select(polygon.id)
         for command in ('edit_points','edit_stitches','routing_dialog','create_applique','transform_dialog','thread_catalog_dialog',
-                        'add_lettering','placement_template','multihoop_dialog','custom_hoop','batch_convert','browse_designs','check_design'):
+                        'add_lettering','placement_template','multihoop_dialog','custom_hoop','batch_convert','browse_designs','check_design','fabric_dialog','help'):
             getattr(window,command)()
         monkeypatch.setattr(QFileDialog,'getOpenFileName',lambda *a:(str(picture),''))
         window.digitize_raster()
@@ -155,3 +155,20 @@ def test_sequence_buttons_are_not_clipped_at_larger_text(points):
             assert widget.width()>=widget.sizeHint().width(),(text,widget.width(),widget.sizeHint().width())
     finally:
         window.saved=window.project.dumps();window.close();app.setFont(previous)
+
+
+
+def test_getting_started_large_text_scrolls_and_closes_from_keyboard():
+    from PySide6.QtGui import QFont
+    from morale.help_dialog import GettingStartedDialog
+    dialog=GettingStartedDialog()
+    try:
+        font=QFont(dialog.font());font.setPointSize(18);dialog.setFont(font)
+        dialog.resize(500,400);dialog.show();QApplication.processEvents()
+        assert dialog.guide.verticalScrollBar().maximum()>0
+        assert unnamed_controls(dialog)==[]
+        dialog.guide.setFocus();QTest.keyClick(dialog.guide,Qt.Key.Key_End,Qt.KeyboardModifier.ControlModifier)
+        assert dialog.guide.verticalScrollBar().value()>0
+        QTest.keyClick(dialog,Qt.Key.Key_Escape)
+        assert not dialog.isVisible()
+    finally:dialog.close()

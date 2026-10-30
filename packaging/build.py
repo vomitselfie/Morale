@@ -46,6 +46,11 @@ def run(*command, **options):
 
 
 def build_bundle(icons):
+    licenses=ROOT / "build" / "dependency-licenses"
+    if licenses.exists():shutil.rmtree(licenses)
+    run(sys.executable,ROOT / "packaging" / "collect_licenses.py","--output",licenses)
+    from source_manifest import write
+    write(ROOT,ROOT / "build" / "source-manifest.json")
     env = dict(os.environ, MORALE_ICON_DIR=str(icons))
     run(sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--distpath", ROOT / "dist",
         "--workpath", ROOT / "build" / "pyinstaller", ROOT / "packaging" / "morale.spec", env=env, cwd=ROOT)
@@ -148,6 +153,7 @@ def main():
     parser.add_argument("--check-tag", help="Only verify that a vX.Y.Z tag matches the package version")
     parser.add_argument("--skip-self-test", action="store_true")
     parser.add_argument("--no-installer", action="store_true", help="Windows: skip the Inno Setup installer")
+    parser.add_argument("--bundle-only", action="store_true", help="Build and test the native app without creating distribution archives or installers")
     args = parser.parse_args()
     current = version()
     if args.check_tag is not None:
@@ -164,6 +170,8 @@ def main():
     build_bundle(icons)
     if not args.skip_self_test:
         self_test()
+    if args.bundle_only:
+        return
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     system = {"linux": "linux", "win32": "windows", "darwin": "macos"}.get(sys.platform, sys.platform)

@@ -97,3 +97,55 @@ def test_candidates_exceeding_combined_command_limit_are_skipped(monkeypatch):
     monkeypatch.setattr(module,'generate',fake_generate)
     result,report=choose_fill_angles(source,evaluation_limit=2)
     assert result==source and not report['changes']
+
+
+@pytest.mark.parametrize('locks',[(0,),[0],iter([0])])
+def test_locked_region_does_not_disable_search_for_neighbors(locks):
+    source=Project(objects=[DesignObject(kind='rectangle',x=-25,width=40,height=10,underlay=False,angle=17),
+                            DesignObject(kind='rectangle',x=25,width=40,height=10,underlay=False,angle=45)])
+    before=source.dumps();result,report=choose_fill_angles(source,locked_regions=locks)
+    assert source.dumps()==before and result.objects[0]==source.objects[0]
+    assert report['evaluations']>0 and report['changes']
+    assert all(change['region']==1 for change in report['changes'])
+    assert measured(result)<measured(source)
+
+
+@pytest.mark.parametrize('locks',[None,1,[True],[-1],[1],['0'],iter([0,False])])
+def test_invalid_angle_locks_rejected_without_changing_source(locks):
+    source=Project(objects=[DesignObject(angle=17)])
+    before=source.dumps()
+    with pytest.raises(ValueError,match='Invalid locked fill regions'):
+        choose_fill_angles(source,locked_regions=locks)
+    assert source.dumps()==before
+
+
+def test_fine_search_reduces_real_triangle_travel_beyond_coarse_candidates():
+    source=Project(objects=[DesignObject(kind='polygon',width=32,height=21,x=-20,y=20,
+        points=[[-.5,-.5],[.5,-.5],[.1,.5]],underlay=False,angle=45)])
+    before=source.dumps()
+    coarse,limited=choose_fill_angles(source,evaluation_limit=16)
+    refined,report=choose_fill_angles(source)
+    assert not limited['complete'] and limited['evaluations']==16
+    assert report['complete'] and report['evaluations']<=22
+    assert measured(refined)<measured(coarse)-1
+    assert report['after_mm']==pytest.approx(measured(refined))
+    assert source.dumps()==before
+    assert refined.objects[0].rings()==source.objects[0].rings()
+
+
+def test_refinement_obeys_remaining_evaluation_budget():
+    source=Project(objects=[DesignObject(kind='polygon',width=32,height=21,x=-20,y=20,
+        points=[[-.5,-.5],[.5,-.5],[.1,.5]],underlay=False,angle=45)])
+    result,report=choose_fill_angles(source,evaluation_limit=17)
+    assert not report['complete'] and report['evaluations']==17
+    assert measured(result)<=measured(source)
+    assert report['after_mm']==pytest.approx(measured(result))
+
+
+@pytest.mark.parametrize('kwargs,reason',[({'evaluation_limit':1},'evaluation_limit'),({'command_limit':1},'command_limit')])
+def test_search_reports_actual_limit(kwargs,reason):
+    result,report=choose_fill_angles(Project(objects=[DesignObject(kind='rectangle',width=32,height=21)]),**kwargs)
+    assert not report['complete'] and report['stop_reason']==reason
+    assert report['evaluation_limit']==kwargs.get('evaluation_limit',512)
+    assert report['command_limit']==kwargs.get('command_limit',2_000_000)
+    assert report['after_mm']==pytest.approx(measured(result))

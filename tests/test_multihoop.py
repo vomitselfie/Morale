@@ -193,3 +193,26 @@ def test_global_stage_stops_survive_when_stage_geometry_is_in_another_tile():
 def test_too_many_placements_rejected():
     with pytest.raises(ValueError,match='100 placements'):
         split_design(Project(objects=[DesignObject(kind='rectangle',stitch_type='running',width=500,height=500)]),20,20,4)
+
+
+def test_xl_embroidery_lettering_splits_into_small_fields_without_lost_sewing():
+    from dataclasses import replace
+    from morale.embroidery_fonts import load_font,height_range,make_font_lettering
+    from morale.path_fidelity import compare_sewn_paths,sewn_segments
+    font=load_font('initials_XL');height=math.ceil(height_range(font)[0]*100)/100
+    obj=make_font_lettering('A','initials_XL',height)
+    source=Project(objects=[obj]);snapshot=source.dumps();original=generate(source)
+    plan=split_design(source,100,100,8,False)
+    assert len(plan.tiles)>1
+    reconstructed=[]
+    for tile in plan.tiles:
+        blocks=generate(tile.project)
+        assert not preflight(tile.project,blocks)
+        for block in blocks:
+            reconstructed.append(replace(block,stitches=[replace(s,x=s.x+tile.center[0],y=s.y+tile.center[1]) for s in block.stitches]))
+    comparison=compare_sewn_paths(original,reconstructed)
+    for direction in ('decoded_outside_source','source_outside_decoded'):
+        assert comparison[direction]['complete'] and comparison[direction]['samples']>0
+        assert comparison[direction]['outside_samples']==0
+    assert sum(math.dist(a,b) for a,b in sewn_segments(original))==pytest.approx(sum(math.dist(a,b) for a,b in sewn_segments(reconstructed)),abs=1e-6)
+    assert source.dumps()==snapshot

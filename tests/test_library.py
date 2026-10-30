@@ -178,3 +178,16 @@ def test_native_browser_open_respects_unsaved_guard(tmp_path,monkeypatch):
     finally:
         window.saved=window.project.dumps()
         window.close()
+
+
+def test_library_preview_reads_project_notes_and_clears_on_cancel(tmp_path):
+    notes='Fabric: linen\n<b>Literal instructions</b>'
+    project=Project(objects=[DesignObject()],notes=notes);path=tmp_path/'notes.morale';project.save(path)
+    dialog=LibraryDialog(folder=str(tmp_path));dialog.show()
+    try:
+        dialog.runner.load(path);wait_for(lambda:dialog.preview_path is not None)
+        assert dialog.project_notes.toPlainText()==notes
+        assert dialog.project_notes.isReadOnly() and dialog.project_notes.isVisible()
+        dialog.cancel_preview()
+        assert dialog.project_notes.toPlainText()=='' and not dialog.project_notes.isVisible()
+    finally:dialog.close()

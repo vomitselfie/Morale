@@ -18,7 +18,8 @@ def stroke_outline(element):
     path=svg.Path(element)
     if len(path)>6000:raise ValueError('SVG path exceeds 6,000 segments.')
     values=element.values
-    if values.get('vector-effect','none')!='none':
+    effect=values.get('vector-effect','none')
+    if effect not in {'none','non-scaling-stroke'}:
         raise ValueError('Convert SVG vector effects to plain paths before expanding strokes.')
     caps={'butt':Qt.PenCapStyle.FlatCap,'round':Qt.PenCapStyle.RoundCap,'square':Qt.PenCapStyle.SquareCap}
     joins={'miter':Qt.PenJoinStyle.SvgMiterJoin,'round':Qt.PenJoinStyle.RoundJoin,'bevel':Qt.PenJoinStyle.BevelJoin}
@@ -38,18 +39,20 @@ def stroke_outline(element):
                 if isinstance(part,svg.CubicBezier):geometry.cubicTo(part.control1.x,part.control1.y,part.control2.x,part.control2.y,part.end.x,part.end.y)
                 elif isinstance(part,svg.QuadraticBezier):geometry.quadTo(part.control.x,part.control.y,part.end.x,part.end.y)
                 else:geometry.lineTo(part.end.x,part.end.y)
+    m=element.transform
+    transform=QTransform(m.a,m.b,m.c,m.d,m.e,m.f)
+    if effect=='non-scaling-stroke':geometry=transform.map(geometry)
     stroker=QPainterPathStroker();stroker.setWidth(width);stroker.setCapStyle(caps[cap]);stroker.setJoinStyle(joins[join])
     # SvgMiterJoin applies SVG's half-width ratio and bevel fallback itself.
     stroker.setMiterLimit(limit);stroker.setCurveThreshold(.01)
     dots=configure_dashes(stroker,geometry,values,width)
-    m=element.transform
     if stroker.dashPattern():
         # Qt flattens curves while dashing; enlarge first for sub-unit fidelity.
         stroker.setWidth(width*20)
         stroke=QTransform().scale(.05,.05).map(stroker.createStroke(QTransform().scale(20,20).map(geometry)))
     else:stroke=stroker.createStroke(geometry)
     stroke.addPath(dots)
-    outlined=QTransform(m.a,m.b,m.c,m.d,m.e,m.f).map(stroke)
+    outlined=stroke if effect=='non-scaling-stroke' else transform.map(stroke)
     commands=[];index=0
     while index<outlined.elementCount():
         part=outlined.elementAt(index)

@@ -1,11 +1,10 @@
 """Printable review of a generated artwork conversion, not a sew-out template."""
 import base64
-import math
 import os
 from pathlib import Path
 import tempfile
-from PySide6.QtCore import QRectF,Qt
-from PySide6.QtGui import QImage,QPainter,QPdfWriter,QPageSize,QPageLayout,QFont,QTextDocument
+from PySide6.QtCore import QRectF,QPointF,Qt
+from PySide6.QtGui import QImage,QPainter,QPdfWriter,QPageSize,QPageLayout,QFont,QTextLayout,QTextOption
 from PySide6.QtSvg import QSvgRenderer
 from .trace_quality import quality_text
 from .review_panels import aligned_panels
@@ -25,8 +24,22 @@ def save_conversion_review(path,source_name,info,stitches,fabric=None):
     stats=info['trace_stats'];quality=dict(stats['quality'])
     if fabric is not None and quality.get('layers'):quality['fabric']=fabric
     text=quality_text(quality)
+    if info.get('source_digest'):
+        text+='\n\nSource artwork SHA-256 (at conversion):\n'+info['source_digest']
     decisions=stats.get('stitch_decisions',[])
-    text+='\n\nStitch selection\n'+'\n'.join(f"Region {d['region']+1}: {d['selected']} — {d['reason']}" for d in decisions)
+    order=stats.get('sewing_order') or (stats.get('routing') or {}).get('order') or list(range(len(decisions)))
+    selection=[]
+    for decision in decisions:
+        region=decision['region']
+        position=f' (sew {order.index(region)+1})' if region in order else ''
+        line=f"Artwork region {region+1}{position}: {decision['selected']} — {decision['reason']}"
+        if decision.get('fallback'):line=f"FALLBACK (requested {decision['requested']}): "+line
+        if decision['selected'] in {'fill','satin'} and decision.get('spacing_mm') is not None:
+            line+=f" Spacing: {decision['spacing_mm']:g} mm."
+        if decision['selected']=='fill' and decision.get('angle_degrees') is not None:
+            line+=f" Fill angle: {decision['angle_degrees']:g} degrees."
+        selection.append(line)
+    text+='\n\nStitch selection (original artwork regions)\n'+'\n'.join(selection)
     if len(text)>2_000_000:raise ValueError('Conversion review text exceeds the supported limit.')
     path=Path(path);temporary=None
     try:
@@ -42,11 +55,25 @@ def _write(path,name,info,source,vector,stitches,maps,text):
     writer=QPdfWriter(str(path));writer.setResolution(72);writer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
     writer.setPageOrientation(QPageLayout.Orientation.Landscape);writer.setTitle('Morale artwork conversion review');writer.setCreator('Morale')
     width,height=writer.width(),writer.height();margin=14;body_height=height-85
-    document=QTextDocument();document.setDefaultFont(QFont('Sans',10));document.setPlainText(text);document.setTextWidth(width-2*margin)
-    pages=max(1,math.ceil(document.size().height()/body_height))
-    if pages>200:
-        del writer
-        raise ValueError('Conversion review exceeds 200 text pages.')
+    # Keep layouts alive while their QTextLine handles are painted. Each line
+    # belongs to one page; drawing sliced QTextDocuments can repeat boundary text.
+    layouts=[];text_pages=[[]];y=0
+    option=QTextOption();option.setWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
+    for paragraph in text.split('\n'):
+        layout=QTextLayout(paragraph or ' ',QFont('Sans',10),writer)
+        layout.setTextOption(option);layouts.append(layout);layout.beginLayout()
+        while True:
+            line=layout.createLine()
+            if not line.isValid():break
+            line.setLineWidth(width-2*margin)
+            if y+line.height()>body_height:
+                text_pages.append([]);y=0
+            if len(text_pages)>200:
+                layout.endLayout()
+                raise ValueError('Conversion review exceeds 200 text pages.')
+            text_pages[-1].append((line,y));y+=line.height()
+        layout.endLayout()
+    pages=len(text_pages)
     painter=QPainter(writer)
     if not painter.isActive():
         del painter;del writer
@@ -73,9 +100,9 @@ def _write(path,name,info,source,vector,stitches,maps,text):
                          f'All three panels share one physical frame: X {frame.left():.2f} to {frame.right():.2f} mm, Y {frame.top():.2f} to {frame.bottom():.2f} mm. Dashed lines mark the original artwork page. Light stitches have a preview-only contrast outline. Prepared artwork retains source colors; cleanup, overlap removal and stitch choices affect the embroidery.')
         for title,image in zip(('Needle-penetration review','Sewn-thread-length review','Coverage-layers review'),maps):
             page(title);picture(image,QRectF(margin,37,width-2*margin,height-68))
-        for i in range(pages):
+        painter.setFont(QFont('Sans',10))
+        for i,lines in enumerate(text_pages):
             page('Conversion measurements'+(' · continued' if i else ''))
-            painter.save();painter.translate(margin,42-i*body_height)
-            document.drawContents(painter,QRectF(0,i*body_height,width-2*margin,body_height));painter.restore()
+            for line,y in lines:line.draw(painter,QPointF(margin,42+y))
     finally:
         painter.end();del painter;del writer

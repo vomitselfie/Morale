@@ -16,6 +16,7 @@ class Canvas(StitchCanvasMixin, QWidget):
     box_selected = Signal(object)
     moved = Signal(str, float, float)
     drawn = Signal(str, list)
+    guide_added = Signal(str,float)
     zoom_changed = Signal(int)
     message = Signal(str)
     measured = Signal(float, float, float)
@@ -28,6 +29,7 @@ class Canvas(StitchCanvasMixin, QWidget):
         super().__init__()
         self.setMinimumSize(380, 380)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setAccessibleDescription('Drawing tools: arrows move 1 mm, Shift arrows 10 mm, Alt arrows 0.1 mm. Grid snapping uses the grid step. Home returns to the origin. Space places a point or shape corner; Enter finishes paths; Backspace removes a point; Escape cancels.')
         self.setMouseTracking(True)
         self.project = None
         self.blocks = []
@@ -38,6 +40,8 @@ class Canvas(StitchCanvasMixin, QWidget):
         self.marquee_base = set()
         self.snap_grid = False
         self.snap_objects = False
+        self.show_layout_guides = True
+        self.snap_layout_guides = False
         self.snap_bounds_cache = {}
         self.grid_spacing = None
         self.mode = "select"
@@ -49,6 +53,8 @@ class Canvas(StitchCanvasMixin, QWidget):
         self.panning = False
         self.vertices = []
         self.cursor_point = QPointF()
+        self.keyboard_cursor = False
+        self.guide_draft = None
         self.show_stitches = True
         self.show_grid = True
         self.reference_key = None
@@ -69,6 +75,7 @@ class Canvas(StitchCanvasMixin, QWidget):
         self.timeline = Timeline([])
 
     def set_design(self, project, blocks):
+        self.guide_draft = None
         self.snap_bounds_cache = {}
         self.snap_guides = (None,None)
         self.stitch_marquee = None
@@ -99,6 +106,8 @@ class Canvas(StitchCanvasMixin, QWidget):
             self.update()
 
     def set_mode(self, mode):
+        self.keyboard_cursor = False
+        self.guide_draft = None
         self.stitch_marquee = None
         self.node_drag = None
         self.stitch_drag = None
@@ -115,11 +124,20 @@ class Canvas(StitchCanvasMixin, QWidget):
     def world(self, point):
         return (point - QPointF(self.width() / 2, self.height() / 2) - self.pan) / self.scale
 
-    def snapped(self, point):
-        if not self.snap_grid:
-            return point
-        step = self.grid_step()
-        return QPointF(round(point.x() / step) * step, round(point.y() / step) * step)
+    def snapped(self, point, use_guides=True):
+        result=QPointF(point)
+        if self.snap_grid:
+            step=self.grid_step()
+            result=QPointF(round(point.x()/step)*step,round(point.y()/step)*step)
+        if use_guides and self.show_layout_guides and self.snap_layout_guides and self.project:
+            for axis,value in (('x',point.x()),('y',point.y())):
+                positions=[g['position'] for g in self.project.guides if g['axis']==axis]
+                if positions:
+                    nearest=min(positions,key=lambda position:abs(position-value))
+                    if abs(nearest-value)<=8/self.scale:
+                        if axis=='x':result.setX(nearest)
+                        else:result.setY(nearest)
+        return result
 
     def grid_step(self):
         return self.grid_spacing if self.grid_spacing is not None else 6.35 if self.unit == "in" else 10.
@@ -134,9 +152,9 @@ class Canvas(StitchCanvasMixin, QWidget):
             anchor = next((obj for obj in self.project.objects if obj.id == self.selected_id), None)
             if anchor:
                 center = QPointF(anchor.x, anchor.y)
-                delta = self.snapped(center + delta) - center
+                delta = self.snapped(center + delta,use_guides=False) - center
         self.snap_guides=(None,None)
-        if self.snap_objects and self.project:
+        if self.project and (self.snap_objects or self.snap_layout_guides and self.show_layout_guides):
             from .object_snapping import snap_bounds,object_bounds
             selection=set(self.selected_ids) or {self.selected_id}
             moving=[];targets=[]
@@ -144,9 +162,15 @@ class Canvas(StitchCanvasMixin, QWidget):
                 if not obj.visible or self.inspection_ids is not None and obj.id not in self.inspection_ids:continue
                 if obj.id not in self.snap_bounds_cache:self.snap_bounds_cache[obj.id]=object_bounds(obj)
                 (moving if obj.id in selection else targets).append(self.snap_bounds_cache[obj.id])
-            candidate,self.snap_guides=snap_bounds(moving,targets,point-self.press,8/self.scale)
-            if self.snap_guides[0] is not None:delta.setX(candidate.x())
-            if self.snap_guides[1] is not None:delta.setY(candidate.y())
+            guide_sets=[]
+            if self.snap_layout_guides and self.show_layout_guides:guide_sets.append(([],self.project.guides))
+            if self.snap_objects:guide_sets.append((targets,()))
+            active=list(self.snap_guides)
+            for boxes,guides in guide_sets:
+                candidate,matches=snap_bounds(moving,boxes,point-self.press,8/self.scale,guides)
+                if matches[0] is not None:delta.setX(candidate.x());active[0]=matches[0]
+                if matches[1] is not None:delta.setY(candidate.y());active[1]=matches[1]
+            self.snap_guides=tuple(active)
         return delta
 
     @staticmethod
@@ -246,6 +270,14 @@ class Canvas(StitchCanvasMixin, QWidget):
             for i in range(math.ceil(-hh / 2 / spacing), math.ceil(hh / 2 / spacing)):
                 y = i * spacing
                 p.drawLine(QPointF(-hw / 2, y), QPointF(hw / 2, y))
+        p.setPen(QPen(QColor("#7864a0"), 1 / self.scale, Qt.PenStyle.DashLine))
+        top_left=self.world(QPointF(0,0));bottom_right=self.world(QPointF(self.width(),self.height()))
+        visible_guides=list(self.project.guides) if self.show_layout_guides else []
+        if self.guide_draft:visible_guides.append(self.guide_draft)
+        for guide in visible_guides:
+            position=guide['position']
+            if guide['axis']=='x':p.drawLine(QPointF(position,top_left.y()),QPointF(position,bottom_right.y()))
+            else:p.drawLine(QPointF(top_left.x(),position),QPointF(bottom_right.x(),position))
         p.setPen(QPen(QColor("#b8c8bf"), 1 / self.scale, Qt.PenStyle.DashLine))
         p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawRect(hoop)
@@ -261,7 +293,7 @@ class Canvas(StitchCanvasMixin, QWidget):
                 p.translate(self.drag)
             color = QColor(obj.color)
             color.setAlpha(22 if self.playhead is not None else (65 if self.show_stitches else 215))
-            p.setBrush(color if obj.stitch_type in {"fill", "contour", "satin"} else Qt.BrushStyle.NoBrush)
+            p.setBrush(color if obj.stitch_type in {"fill", "contour", "ripple", "satin"} else Qt.BrushStyle.NoBrush)
             p.setPen(QPen(QColor("#87958d"),1/self.scale,Qt.PenStyle.DotLine) if obj.stitch_type=="motif" else QPen(QColor(obj.color), .18))
             p.drawPath(self.outline_path(obj))
             p.restore()
@@ -311,6 +343,10 @@ class Canvas(StitchCanvasMixin, QWidget):
                 p.drawRect(QRectF(pt.x() - 2.5 / self.scale, pt.y() - 2.5 / self.scale, 5 / self.scale, 5 / self.scale))
         p.setBrush(QColor(57, 110, 89, 35))
         p.setPen(QPen(QColor("#397359"), 1.5 / self.scale, Qt.PenStyle.DashLine))
+        if self.keyboard_cursor:
+            d=6/self.scale;c=self.cursor_point
+            p.drawLine(QPointF(c.x()-d,c.y()),QPointF(c.x()+d,c.y()))
+            p.drawLine(QPointF(c.x(),c.y()-d),QPointF(c.x(),c.y()+d))
         if self.marquee_start is not None:
             p.drawRect(QRectF(self.marquee_start, self.cursor_point).normalized())
         if self.stitch_marquee is not None:
@@ -419,6 +455,11 @@ class Canvas(StitchCanvasMixin, QWidget):
             return
         if event.button() != Qt.MouseButton.LeftButton or self.playhead is not None:
             return
+        if self.show_rulers and ((event.position().x()<24) != (event.position().y()<24)):
+            axis='x' if event.position().x()<24 else 'y'
+            self.guide_draft={'axis':axis,'position':0.}
+            self.update_guide_draft(event.position())
+            return
         point = self.drawing_point(event.position())
         self.cursor_point = point
         if self.mode == "stitch_nodes":
@@ -476,7 +517,16 @@ class Canvas(StitchCanvasMixin, QWidget):
                 self.measurement = (point, point)
         self.update()
 
+    def update_guide_draft(self,position):
+        point=self.snapped(self.world(position),use_guides=False)
+        value=point.x() if self.guide_draft['axis']=='x' else point.y()
+        self.guide_draft['position']=max(-1000,min(1000,value))
+        self.update()
+
     def mouseMoveEvent(self, event):
+        if self.guide_draft is not None:
+            self.update_guide_draft(event.position())
+            return
         if self.panning:
             self.pan += event.position() - self.pan_start
             self.pan_start = event.position()
@@ -500,6 +550,13 @@ class Canvas(StitchCanvasMixin, QWidget):
             self.panning = False
             return
         if event.button() != Qt.MouseButton.LeftButton:
+            return
+        if self.guide_draft is not None:
+            self.update_guide_draft(event.position())
+            guide=self.guide_draft;self.guide_draft=None
+            if self.playhead is None and 24<=event.position().x()<self.width() and 24<=event.position().y()<self.height():
+                self.guide_added.emit(guide['axis'],guide['position'])
+            self.update()
             return
         if self.stitch_marquee is not None:
             object_id,start,base,subtract=self.stitch_marquee;self.stitch_marquee=None
@@ -567,6 +624,7 @@ class Canvas(StitchCanvasMixin, QWidget):
         self.update()
 
     def finish_path(self):
+        if self.playhead is not None:return
         if self.mode == "satin" and (len(self.vertices) < 4 or len(self.vertices) % 2):
             self.message.emit("Satin needs at least two complete left/right pairs. Click the missing point, or Escape to cancel.")
             return
@@ -580,13 +638,16 @@ class Canvas(StitchCanvasMixin, QWidget):
             self.finish_path()
 
     def keyPressEvent(self, event):
-        if self.mode == "stitch_nodes" and self.stitch_key(event):
+        if self.drawing_key(event):
+            event.accept()
+        elif self.mode == "stitch_nodes" and self.stitch_key(event):
             event.accept()
         elif self.mode == "select" and self.selected_id and self.nudge_key(event):
             event.accept()
-        elif event.key() in {Qt.Key.Key_Return, Qt.Key.Key_Enter}:
+        elif event.key() in {Qt.Key.Key_Return, Qt.Key.Key_Enter} and not event.modifiers() & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier):
             self.finish_path()
         elif event.key() == Qt.Key.Key_Escape:
+            self.guide_draft=None
             self.stitch_marquee = None
             self.node_drag = None
             self.stitch_drag = None
@@ -600,8 +661,40 @@ class Canvas(StitchCanvasMixin, QWidget):
         else:
             super().keyPressEvent(event)
 
+    def drawing_key(self,event):
+        if self.mode not in {'ellipse','rectangle','leaf','polygon','path','satin'} or self.playhead is not None:return False
+        if event.modifiers() & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier):return False
+        key=event.key()
+        directions={Qt.Key.Key_Left:(-1,0),Qt.Key.Key_Right:(1,0),Qt.Key.Key_Up:(0,-1),Qt.Key.Key_Down:(0,1)}
+        if key not in {*directions,Qt.Key.Key_Home,Qt.Key.Key_Space,Qt.Key.Key_Backspace}:return False
+        self.keyboard_cursor=True
+        if key in directions:
+            step=self.grid_step() if self.snap_grid else 10 if event.modifiers() & Qt.KeyboardModifier.ShiftModifier else .1 if event.modifiers() & Qt.KeyboardModifier.AltModifier else 1
+            dx,dy=directions[key];point=self.cursor_point+QPointF(dx*step,dy*step)
+            point=self.snapped(point,use_guides=False)
+            limit=math.floor(1000/self.grid_step()+1e-9)*self.grid_step() if self.snap_grid else 1000
+            self.cursor_point=QPointF(max(-limit,min(limit,point.x())),max(-limit,min(limit,point.y())))
+        elif key==Qt.Key.Key_Home:self.cursor_point=QPointF()
+        elif key==Qt.Key.Key_Backspace:
+            if self.vertices:self.vertices.pop()
+            else:self.press=None
+        elif self.mode in {'polygon','path','satin'}:
+            if not event.isAutoRepeat():self.vertices.append(QPointF(self.cursor_point))
+        elif not event.isAutoRepeat():
+            if self.press is None:self.press=QPointF(self.cursor_point)
+            elif abs(self.cursor_point.x()-self.press.x())>=1 and abs(self.cursor_point.y()-self.press.y())>=1:
+                points=[(self.press.x(),self.press.y()),(self.cursor_point.x(),self.cursor_point.y())]
+                self.press=None;self.drawn.emit(self.mode,points)
+        screen=QPointF(self.width()/2,self.height()/2)+self.pan+self.cursor_point*self.scale
+        margin_x,margin_y=min(40,self.width()/2),min(40,self.height()/2)
+        self.pan+=QPointF(max(margin_x,min(self.width()-margin_x,screen.x()))-screen.x(),
+                         max(margin_y,min(self.height()-margin_y,screen.y()))-screen.y())
+        self.message.emit(f'Drawing cursor: {self.cursor_point.x():.2f}, {self.cursor_point.y():.2f} mm. Space places a point; Enter finishes a path; Escape cancels.')
+        self.update();return True
+
     def nudge_key(self, event):
         """Arrow keys move the selection: 0.1 mm, 1 mm with Shift, or one grid step."""
+        if event.modifiers() & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier):return False
         directions = {Qt.Key.Key_Left: (-1, 0), Qt.Key.Key_Right: (1, 0), Qt.Key.Key_Up: (0, -1), Qt.Key.Key_Down: (0, 1)}
         if event.key() not in directions:
             return False

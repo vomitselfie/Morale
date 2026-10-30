@@ -50,6 +50,8 @@ def conversion_quality(project,blocks=None):
         if long_stitches:notes.append(f'{long_stitches} sewn spans longer than 6 mm; longest {maximum:.2f} mm. Inspect stitch splitting and imported needle positions.')
         if long_jumps: notes.append(f'{long_jumps} jumps longer than 5 mm; inspect travel and trims.')
         regions.append({'object_id':obj.id,'name':obj.name,'stitch_type':obj.stitch_type,
+            'fill_angle_degrees':obj.angle if obj.stitch_type=='fill' else None,
+            'spacing_mm':obj.spacing if obj.stitch_type in {'fill','satin'} else None,
             'underlay':underlay_snapshot(obj),'bounds_mm':[width,height],'stitches':sewn,'short_stitches':short,'zero_length_stitches':zero,
             'long_stitches':long_stitches,'maximum_stitch_mm':maximum,'long_stitch_locations':long_locations,'long_stitch_locations_complete':long_stitches<=20,
             'long_jumps':long_jumps,'jump_length_mm':jump_length,'sewn_length_mm':sewn_length,'notes':notes})
@@ -118,7 +120,7 @@ def quality_text(report):
                       f"Overlap allowance: {overlap['allowance_mm']:.2f} mm. Compensation and underlay can extend beyond these artwork boundaries; inspect seams before sewing.",''])
     if report.get('hole_filter',{}).get('minimum_area_mm2',0):
         holes=report['hole_filter']
-        if holes.get('occupied_holes_retained'):lines.append(f"Small holes retained because another fill occupies them: {holes['occupied_holes_retained']}.")
+        if holes.get('occupied_holes_retained'):lines.append(f"Small holes retained because another fill or running-stitch detail occupies them: {holes['occupied_holes_retained']}.")
         lines.extend([f"Holes below {holes['minimum_area_mm2']:.2f} mm²: {holes['filled_holes']} filled ({holes['added_area_mm2']:.2f} mm² added).",
                       'This adds artwork material. Compare enclosed details against the source before sewing.',''])
         for change in holes.get('changes',[]):
@@ -145,9 +147,14 @@ def quality_text(report):
         lines.extend(['Travel measurements exclude transfers within a region. Routing is a bounded search; inspect sewing order.',''])
     if report.get('fill_angles'):
         angles=report['fill_angles']
+        reason={'evaluation_limit':'candidate evaluation limit reached','command_limit':'generated-command limit reached'}.get(angles.get('stop_reason'),'work limit reached')
         lines.extend([f"Fill-angle travel: {angles['before_mm']:.2f} → {angles['after_mm']:.2f} mm before later routing/finishing.",
-                      'Candidate angle search completed.' if angles['complete'] else 'Partial angle search: evaluation budget reached.',
-                      'Angles change fill grain; review appearance and fabric behavior. This is a bounded search, not a global optimum.'])
+                      'Candidate angle search completed.' if angles['complete'] else f'Partial angle search: {reason}.',
+                      'Search tests coarse directions, then 5° steps within 15° of the best direction. Angles change fill grain; review appearance and fabric behavior. This is a bounded search, not a global optimum.'])
+        if 'evaluations' in angles:
+            lines.append(f"Candidates evaluated: {angles['evaluations']}; generated commands: {angles['generated_commands']}.")
+        if angles.get('rejected_candidates'):
+            lines.append(f"Candidates rejected for invalid, empty or oversized stitch output: {angles['rejected_candidates']}.")
         lines.extend(f"Region {c['region']+1}: {c['from_degrees']:.1f}° → {c['to_degrees']:.1f}°; travel reduced by {c['travel_saved_mm']:.2f} mm." for c in angles['changes'])
         lines.append('')
     if report.get('finishing'):
@@ -178,6 +185,8 @@ def quality_text(report):
         else:lines.extend(['Thread grouping: no reordering reduced thread changes without crossing an overlap or stop.',''])
     for order,region in enumerate(report['regions'],1):
         lines.append(f"Sew {order}: {region['name']} · {region['stitch_type']} · {region['stitches']} stitches")
+        if region.get('spacing_mm') is not None:lines.append(f"Stitch spacing: {region['spacing_mm']:g} mm.")
+        if region.get('fill_angle_degrees') is not None:lines.append(f"Fill angle: {region['fill_angle_degrees']:g} degrees.")
         support=region.get('underlay')
         if support is not None:
             if not support['enabled']:lines.append('Underlay: Disabled.')

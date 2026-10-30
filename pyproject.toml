@@ -25,7 +25,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Topic :: Multimedia :: Graphics :: Editors :: Vector-Based",
 ]
-dependencies = ["PySide6>=6.8,<7", "pyembroidery>=1.5.1,<2", "svgelements>=1.9.6,<2", "vtracer==1.0.0a4"]
+dependencies = ["PySide6>=6.8,<7", "pyembroidery>=1.5.1,<2", "svgelements>=1.9.6,<2", "vtracer==1.0.0a4", "tinycss2>=1.4,<2", "cssselect2>=0.8,<1"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-timeout>=2.3", "pyinstaller>=6", "build>=1"]

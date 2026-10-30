@@ -47,3 +47,18 @@ def write_chart(project, blocks, stream):
         writer.writerow([index, csv_text(names[row["object_id"]]), row["color"],
                          *[csv_text(row["thread"].get(key, "")) for key in THREAD_FIELDS],
                          row["stitches"], f"{row['sewn_m']:.6f}", f"{row['travel_m']:.6f}", row["trims"], row["stops"], csv_text(notes[row["object_id"]])])
+
+
+def save_chart(project,blocks,path):
+    """Publish a complete CSV without truncating an existing chart on failure."""
+    import os
+    import tempfile
+    from pathlib import Path
+    path=Path(path);temporary=None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w',newline='',encoding='utf-8',dir=path.parent,suffix='.tmp',delete=False) as stream:
+            temporary=Path(stream.name)
+            write_chart(project,blocks,stream)
+        os.replace(temporary,path)
+    finally:
+        if temporary is not None:temporary.unlink(missing_ok=True)

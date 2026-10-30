@@ -55,3 +55,22 @@ def test_everything_saved_reopens_with_the_same_content(tmp_path, name):
     reopened = Project.loads(path.read_text(encoding='utf-8'))
     assert [o.id for o in reopened.objects] == [o.id for o in project.objects]
     assert reopened.dumps() == project.dumps()
+
+
+def test_save_respects_open_size_limit_before_replacing_file(tmp_path,monkeypatch):
+    import morale.model as model
+    import morale.open_worker as opener
+    project=Project(name='Unicode α')
+    size=len(project.dumps().encode('utf-8'))
+    monkeypatch.setattr(model,'MAX_PROJECT_BYTES',size)
+    monkeypatch.setattr(opener,'MAX_PROJECT_BYTES',size)
+    path=tmp_path/'boundary.morale';project.save(path)
+    assert path.stat().st_size==size
+    assert opener.decode(path)[0].dumps()==project.dumps()
+    original=path.read_bytes()
+    project.name+='x'
+    with pytest.raises(ValueError,match='50 MB'):project.save(path)
+    assert path.read_bytes()==original
+    assert list(tmp_path.iterdir())==[path]
+    with pytest.raises(ValueError,match='50 MB'):project.save(tmp_path/'new.morale')
+    assert not (tmp_path/'new.morale').exists()

@@ -33,3 +33,32 @@ def apply_stitch_settings(project,settings):
                 if key in settings:setattr(obj,key,settings[key])
         if obj!=before:changed.append(obj.id)
     return result,{'requested':dict(settings),'changed_objects':len(changed)}
+
+
+def apply_region_spacing(project,overrides):
+    """Apply source-region spacing before any sewing-order changes."""
+    if not isinstance(overrides,dict) or len(overrides)>500:raise ValueError('Invalid region spacing overrides.')
+    for key,value in overrides.items():
+        if not isinstance(key,str) or not key.isdecimal() or str(int(key))!=key or not 0<=int(key)<len(project.objects):
+            raise ValueError('Region spacing refers to an unavailable region.')
+        if isinstance(value,bool) or not isinstance(value,(int,float)) or not math.isfinite(value) or not .2<=value<=5:
+            raise ValueError('Region stitch spacing must be between 0.2 and 5 mm.')
+    result=deepcopy(project)
+    for key,value in overrides.items():
+        obj=result.objects[int(key)]
+        if obj.stitch_type in {'fill','satin'} and obj.kind!='stitches':obj.spacing=value
+    return result
+
+
+def apply_region_angles(project,overrides):
+    if not isinstance(overrides,dict) or len(overrides)>500:raise ValueError('Invalid region angle overrides.')
+    for key,value in overrides.items():
+        if not isinstance(key,str) or not key.isdecimal() or str(int(key))!=key or not 0<=int(key)<len(project.objects):
+            raise ValueError('Region angle refers to an unavailable region.')
+        if isinstance(value,bool) or not isinstance(value,(int,float)) or not math.isfinite(value) or not 0<=value<=359.9:
+            raise ValueError('Region fill angle must be between 0 and 359.9 degrees.')
+    result=deepcopy(project)
+    for key,value in overrides.items():
+        obj=result.objects[int(key)]
+        if obj.stitch_type=='fill' and obj.kind!='stitches':obj.angle=value
+    return result

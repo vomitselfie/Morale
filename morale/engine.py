@@ -147,7 +147,7 @@ def triple_run(stitches):
 def satin(points, spacing, maximum, compensation=0, strict=True):
     """Alternate rails sampled at half row spacing, splitting long spans.
 
-    ``strict`` rejects rail cells that fold or cross. Hand-digitized lettering
+    ``strict`` rejects rail cells that fold, cross or overlap earlier cells. Hand-digitized lettering
     turns tight curves with slightly concave cells, which sew as designed, so
     lettering columns pass ``strict=False``.
     """
@@ -157,21 +157,10 @@ def satin(points, spacing, maximum, compensation=0, strict=True):
         raise ValueError("Satin needs at least two complete rail pairs.")
     pairs = list(zip(points[::2], points[1::2]))
     stations = [pairs[0]]
-    winding = None
+    if strict:
+        from .satin_geometry import validate_cells
+        validate_cells(pairs)
     for (left, right), (next_left, next_right) in zip(pairs, pairs[1:]):
-        quad = [left, right, next_right, next_left]
-        turns = []
-        for i in range(4):
-            a, b, c = quad[i], quad[(i + 1) % 4], quad[(i + 2) % 4]
-            turn = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0])
-            if abs(turn) > 1e-8:
-                turns.append(1 if turn > 0 else -1)
-        if turns:
-            if strict and (min(turns) != max(turns) or winding is not None and turns[0] != winding):
-                raise ValueError("Satin rails cross or fold back. Keep left/right pairs in order and avoid concave rail cells.")
-            winding = turns[0]
-        elif strict and max(math.dist(left, right), math.dist(next_left, next_right)) > .01:
-            raise ValueError("Satin rail pairs overlap without forward progress.")
         distance = max(math.dist(left, next_left), math.dist(right, next_right))
         count = max(1, math.ceil(distance / (spacing / 2)))
         if len(stations) + count > MAX_STITCHES:
@@ -180,8 +169,6 @@ def satin(points, spacing, maximum, compensation=0, strict=True):
             t = i / count
             stations.append(((left[0] + (next_left[0] - left[0]) * t, left[1] + (next_left[1] - left[1]) * t),
                              (right[0] + (next_right[0] - right[0]) * t, right[1] + (next_right[1] - right[1]) * t)))
-    if winding is None and strict:
-        raise ValueError("Satin rails enclose no area.")
     if compensation:
         expanded = []
         for left, right in stations:
@@ -191,6 +178,10 @@ def satin(points, spacing, maximum, compensation=0, strict=True):
                 continue
             dx, dy = (right[0]-left[0])*compensation/width, (right[1]-left[1])*compensation/width
             expanded.append(((left[0]-dx, left[1]-dy), (right[0]+dx, right[1]+dy)))
+        if strict:
+            try:validate_cells(expanded)
+            except ValueError as exc:
+                raise ValueError(f'Pull compensation produces invalid satin rails: {exc} Reduce compensation or split the column.') from exc
         stations = expanded
     result = [Stitch(*stations[0][0], "jump")]
     for i, pair in enumerate(stations):
@@ -393,7 +384,15 @@ def generate(project):
             stitches += satin(rails, obj.spacing, obj.satin_max, obj.pull_compensation)
         else:
             stitches = generate_underlay(obj)
-            if obj.stitch_type == "contour":
+            if obj.stitch_type == "ripple":
+                from .ripple_fill import ripple_paths
+                for path in ripple_paths(obj):
+                    stitches.append(Stitch(*path[0],"jump"))
+                    for a,b in zip(path,path[1:]):
+                        stitches += segment(a,b,obj.stitch_length)
+                        if len(stitches)>MAX_STITCHES:
+                            raise ValueError("Ripple fill exceeds the preview command limit.")
+            elif obj.stitch_type == "contour":
                 stitches += contour_fill(rings,obj.spacing,obj.stitch_length)
             else:
                 fill_stitches = fill(rings[0], obj.spacing, obj.stitch_length, obj.angle, obj.connect_fill, rings[1:], obj.pull_compensation,
@@ -403,7 +402,14 @@ def generate(project):
                     fill_stitches=route_fill_runs(fill_stitches)
                 stitches += fill_stitches
         if obj.kind != "stitches":
-            stitches = short_stitch_cleanup(stitches,obj.minimum_stitch,obj.satin_max if obj.stitch_type == "satin" else obj.stitch_length)
+            segment_allowed=None
+            if obj.stitch_type in {'ripple','contour','pattern'} and obj.minimum_stitch:
+                from .pattern_fill import RegionClip
+                cleanup_region=RegionClip(rings)
+                def segment_allowed(a,b):
+                    return sum(math.dist(start,end) for start,end in cleanup_region.segment(a,b))>=math.dist(a,b)-1e-8
+            stitches = short_stitch_cleanup(stitches,obj.minimum_stitch,obj.satin_max if obj.stitch_type == "satin" else obj.stitch_length,
+                                            segment_allowed=segment_allowed)
             stitches = finish_stitches(stitches, obj.tie_in, obj.tie_off, obj.trim_after, obj.jump_trim)
             if obj.stop_after and stitches:
                 stitches.append(Stitch(stitches[-1].x, stitches[-1].y, "stop"))

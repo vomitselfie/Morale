@@ -148,3 +148,19 @@ def test_operator_pauses_survive_as_stops_or_thread_changes(tmp_path, extension)
     pauses = len(blocks) - 1 + sum(s.command == "stop" for b in blocks for s in b.stitches)
     assert pauses == 2
     assert any(s.command == "trim" for b in blocks for s in b.stitches)
+
+
+@pytest.mark.parametrize('points,expected_trim',[
+    ([(12,22),(8,18),(10,20)],True),
+    ([(12,22),(8,18),(10,21)],False),
+    ([(12,22),(8,19),(10,20)],False),
+    ([(10,20),(10,20),(10,20)],False),
+])
+def test_dst_explicit_trim_signature_is_exact(points,expected_trim):
+    import pyembroidery as emb
+    from morale.formats import decode_dst_trims
+    p=emb.EmbPattern();p.stitches=[[10,20,emb.STITCH],[10,20,emb.COLOR_CHANGE],
+        *[[x,y,emb.JUMP] for x,y in points],[15,20,emb.STITCH]]
+    before=[list(row) for row in p.stitches];decode_dst_trims(p)
+    if expected_trim:assert p.stitches==[before[0],before[1],[10,20,emb.TRIM],before[-1]]
+    else:assert p.stitches==before

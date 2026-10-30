@@ -44,6 +44,21 @@ at most 0.0001 mm to avoid ambiguous vertex intersections. Geometry differences
 above the greater of 1% area or 0.02 square millimeters reject the conversion.
 Automatic columns retain editable points, original color and object identity.
 
+Strict satin generation validates both source rail cells and the sampled rails
+after pull compensation. Compensation that creates a local fold or overlapping
+cells is rejected with guidance to reduce compensation or split the column.
+This detects invalid geometry; it does not automatically redesign acute corners
+or establish physical thread coverage. Hand-digitized lettering retains its
+existing relaxed rail validation.
+
+Automatic column selection tests candidates with the requested conversion stitch
+settings before accepting them. If compensation or another setting makes the
+candidate invalid, conversion retains the original fill geometry and records the
+failure in that region's explanation. This also applies to a requested satin
+override, following the existing fallback behavior for unsuitable columns.
+The requested settings still apply to the retained fill; they are not silently
+reduced to make satin pass.
+
 Closed-band fitting normalizes contour winding, checks nesting, chooses a shared
 seam and samples the two loops by relative arc length. The last rail pair exactly
 repeats the first. The fitter tries contour simplification at 0.005, 0.02, 0.05
@@ -189,6 +204,14 @@ nine-format output.
 Nine-format export checks cover decoded sewn points and bounds, not full machine
 travel equivalence or physical sewing quality.
 
+Inter-region travel planning now also refines the original and nearest-neighbor
+orders with adjacent swaps: up to four passes per order and 2,048 candidate
+evaluations in total. Only separate regions within the same uninterrupted thread
+run can swap; layer dependencies and semantic barriers remain. Each accepted swap
+reduces measured travel including the next region. Direction optimization compares
+the original, greedy and refined orders. This bounded local search does not
+establish a globally optimal route or join separate regions into continuous sewing.
+
 Next work, while retaining the broader parity ledger:
 
 1. Extend crotch-chord branch partitioning with continuous branch routing,
@@ -305,7 +328,8 @@ Short excursions between samples can be missed. The comparison ignores thread
 identity and sewing order; existing command/color reports remain necessary.
 An apparent decoded connecting stitch is evidence about the reader/writer
 round trip, not proof of physical needle behavior. In particular, the installed
-VP3 writer omits jumps, and its round-trip path differences remain unresolved.
+VP3 writer omits jumps; Morale now uses its own adapter to retain landing points.
+The current generated corpus passes, with physical VP3 behavior still unverified.
 The benchmark JSON and review PDF now expose sampled path differences separately
 from bounds acceptance; a bounds pass is still not a fidelity pass.
 
@@ -448,7 +472,7 @@ projects default to off. It applies only to the top fill, leaving underlay routi
 alone. Three to 2,000 runs are compared; larger fills keep scanline order. This
 bounded heuristic is not a global optimum, and reversed sewing direction can
 change physical behavior. Review the resulting travel, ties and trims. Machine
-formats may still change travel on export, including the documented VP3 issue.
+formats may still change travel on export; compare reopened commands before sewing.
 
 ## Perceptual raster palettes
 
@@ -643,11 +667,11 @@ samples, and have no samples outside its 0.15 mm tolerance. Missing or partial
 comparisons fail. Artwork-only checks have a separate result and cannot turn a
 failed export into a passing overall benchmark. The CLI exits nonzero on failure.
 
-The current eleven-case corpus passes all artwork checks and 99 bounds checks,
-but only 92 of 99 sampled sewn-path checks. Seven VP3 exports fail because of
-extra sewn travel; this known limitation is not exempted from the overall gate.
-The other eight writers pass these generated cases. Sampling at 0.25 mm is not
-exact path equivalence or physical machine validation.
+The October 3 rerun passes all eleven artwork cases, 99 bounds checks and all
+99 sampled sewn-path checks, including VP3 with the current adapter. The report
+and review PDF are in `artifacts/image-benchmark-oct03-current/`. This supersedes
+the earlier seven VP3 failures without weakening the acceptance criteria.
+Sampling at 0.25 mm is not exact path equivalence or physical machine validation.
 
 
 ## Optional small-hole filling
@@ -683,7 +707,7 @@ The enclosed-white benchmark fixture adds a white interior detail within a color
 shape on a white page. Border-connected exclusion must remove the page while
 retaining the interior white region. Both traced and planned color-region geometry
 are gated, followed by all nine machine writers. The fixture currently passes its
-artwork checks and eight writers' sampled path checks; VP3 remains a failure.
+artwork checks and all nine writers' sampled path checks in the current rerun.
 
 ## Underlay choices during conversion
 
@@ -705,3 +729,131 @@ reported as edge run for fills or center run for satin. Disabled support is
 explicit; center-only support omits unused inset/zigzag-spacing values. Requested
 choices use readable names without measurement units. Older report snapshots
 without per-region underlay data remain readable.
+
+Review PDF measurement pages now lay out and draw individual text lines,
+assigning each complete line to one page. Regression checks extract
+250 numbered notes and 2,400 words from wrapped paragraphs, requiring each to
+appear exactly once and in order across page boundaries.
+
+Stroke expansion supports `vector-effect="non-scaling-stroke"`: the path is
+transformed into the SVG viewport before its border is constructed. Element
+scaling therefore changes the path without scaling its stroke width, caps or
+dash spacing. The resulting plain contours then scale with the chosen embroidery
+width, like other converted artwork. Tests cover nonuniform scaling, three cap
+styles, dash gaps, source preservation and exported-SVG contour round trips.
+Other vector effects remain unsupported. This follows the SVG host-coordinate
+stroke model: https://www.w3.org/TR/SVG2/painting.html.
+
+## Per-region stitch spacing
+
+The preview table exposes spacing (0.2–5 mm) for each fill/satin region. Edits
+apply after global stitch settings and before routing, remain tied to source
+region indices through sewing-order changes, and require a regenerated preview.
+Running outlines do not use this control. Reset region spacing restores global
+settings while retaining stitch-type and band-seam choices. Geometry changes
+clear region spacing along with other region overrides. The result persists on
+the inserted objects, and review measurements report actual spacing. Region
+choices are artwork-specific and are not saved in reusable conversion presets.
+A two-region worker regression verifies different spacing values after the
+optimizer reverses their sewing order; physical coverage remains unvalidated.
+
+The preview also exposes fill angle per region. Editing an angle locks that
+source region during automatic angle search while other eligible regions remain
+searchable. Angle locks apply before travel reordering and persist on the final
+editable objects. Reset region fill angles clears those locks without clearing
+spacing overrides. Geometry changes clear both; neither is stored in reusable
+presets. Conversion measurements/PDFs report final fill angles. These controls
+change stitch direction, not source outlines or a physical fabric model.
+
+To retry a single region, select its row and choose **Reset selected region
+corrections**. This clears that source region's stitch-type override, band seam,
+spacing override and fill-angle lock together. Other regions retain their
+corrections, even when travel optimization changed the sewing order. The row
+shows Pending until you generate a fresh preview; insertion and review exports
+remain unavailable until regeneration. The region then uses the current global
+settings, including automatic stitch selection or angle search when enabled.
+
+### Clipped and reusable SVG artwork
+
+SVG import and assisted digitizing support local clip paths, nested clips,
+percentage and object-relative clip coordinates, cropped nested viewports and
+reusable symbol instances. Clipped strokes become filled borders so their visible
+width survives the crop; unclipped strokes retain the selected import behavior.
+Symbols retain per-instance size, placement and colors. Preview the prepared
+vectors before adding the result, especially around small cutouts and borders.
+The original source is unchanged; imported geometry is editable, but its SVG
+symbol/clip structure is flattened. Masks, gradients and text still require
+preparation in another editor.
+
+### SVG colors and gradients
+
+In the native artwork conversion dialog, enable **Trace SVG colors and gradients**
+to turn rendered colors into editable thread-color regions. Choose a palette size,
+tracing method, and resolution, then generate and inspect the source, vector,
+and stitch previews. Clips and drawn stroke widths are included in the rendering.
+Leave this switch off to retain direct SVG geometry and its outline controls.
+Switching modes clears the preview and region corrections. Conversion presets store this mode; older presets retain direct SVG conversion.
+When loaded for raster artwork, the SVG-only setting does not change the input type.
+
+This initial renderer supports linear/radial gradients and local gradient
+references, including hard color transitions. Local alpha and luminance masks
+are rendered with their regions and content units, including nested masks. Broader CSS style handling and
+some radial edge cases remain under validation. Color regions approximate the
+artwork; they do not reproduce continuous shading with physically blended thread.
+
+SVG color tracing blends partial **fill-opacity** and **stroke-opacity**, including
+gradient stop transparency, before reducing the rendered image to thread colors.
+This supports translucent fills and borders over other artwork. Whole-object and
+group **opacity** use isolated layers, combining overlapping paints before applying
+opacity. Nested group opacity is supported; deeply layered, high-resolution
+artwork may need a lower rendering resolution to stay within the memory limit.
+
+Embedded SVG stylesheets now support selector matching (including classes, IDs,
+and descendant/attribute selectors), source order, inline styles, and
+`!important` precedence. Styles are resolved before vector import or rendered
+color tracing, so gradient stops and masks can use those rules too. External
+stylesheets, at-rules/media queries, pseudo-elements, and CSS variables still
+require preparation in an artwork editor.
+
+### Reuse fabric settings during conversion
+
+Save a `.morale-fabric.json` preset from Edit → Fabric settings, then choose
+**Load fabric…** in Digitize artwork. It enables custom stitch settings and copies
+cover spacing to both fill and satin, plus pull compensation and underlay inset
+and spacing. Fill retains the preset's underlay choice; satin uses center run for
+an edge-run preset and center plus zigzag for sparse-support presets.
+
+Artwork size, tracing options, thread chart and stitch length retain their current
+values. Loading clears the old preview while retaining region stitch choices, seams,
+angles and spacing corrections. Per-region spacing overrides fabric spacing;
+generate and inspect a new preview. These fabric values
+are starting points until calibrated through sewouts on the intended fabric,
+stabilizer and machine.
+
+Fabric presets can also disable underlay. Clear **Enable underlay** in Fabric
+settings before saving; loading that preset into conversion disables both fill
+and satin underlay. Older presets without this switch keep underlay enabled.
+
+Embedded stylesheets and inline styles can define case-sensitive CSS custom
+properties and reference them with `var(--name, fallback)`. Inherited values,
+local overrides, nested fallbacks and substitutions inside sRGB color functions
+are supported. Cycles, missing values without fallbacks and cascade rollback
+keywords fail explicitly; CSS-variable conformance is not complete. Paint presentation attributes (such as `fill="var(--paint)"`) also support
+variable substitution. Expansion is bounded to prevent excessively large generated styles.
+
+Variables used inside elements referenced by `<use>` currently require expanding
+the instances first. Morale rejects those cases explicitly rather than resolving
+them in the definition's context and losing per-instance overrides.
+
+Variable substitution also covers supported presentation attributes for opacity,
+stroke width/caps/joins/dashes, fill/clip rules, local clip/mask references,
+visibility, paint order and color interpolation. The same existing restrictions
+on each resolved SVG feature still apply.
+
+Fill-angle travel optimization now refines its best coarse direction with candidates at ±5°, ±10° and ±15°. Both stages share the existing evaluation and generated-command budgets; an exhausted budget is reported as a partial search. Only lower measured jump travel is accepted, including neighboring transfers and underlay. This remains an optional geometric search, not a fabric-quality recommendation.
+
+To retain a displayed fill direction without editing its value, select its region and choose **Lock selected fill angle**. Regenerate to review; automatic angle search preserves that region’s lock. **Reset region fill angles** clears all angle locks, while resetting selected-region corrections also clears that region’s other corrections.
+
+**Unlock selected fill angle** releases just that region’s direction lock. Its spacing, stitch choice and seam corrections, and all neighboring locks, are retained. Regenerate afterward to apply automatic or default directions.
+
+Small-hole cleanup retains holes occupied by another filled region or intersected by visible running/triple-running artwork. This protects line details imported from SVG as well as filled details. The check uses source centerlines; thread thickness and actual fabric coverage still require preview inspection and sewout testing.

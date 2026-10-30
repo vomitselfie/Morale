@@ -96,3 +96,22 @@ def test_assisted_svg_exports(tmp_path,extension):
     path=tmp_path/f'vector.{extension}';export_machine(project,path)
     sewn=[s for b in generate(import_machine(path).project) for s in b.stitches if s.command=='stitch']
     assert sewn and all(-32.1<=s.x<=3 and -16.1<=s.y<=16.1 for s in sewn)
+
+
+def test_invisible_parent_paint_is_excluded_from_conversion(tmp_path):
+    path=tmp_path/'transparent.svg'
+    path.write_text('<svg width="40" height="40"><g opacity="0"><rect opacity="1" width="40" height="40" fill="red"/></g><rect x="10" y="10" width="10" height="10" fill="blue"/></svg>')
+    before=path.read_bytes()
+    project,image,stats=vector_artwork(path,width=40)
+    assert path.read_bytes()==before
+    assert len(project.objects)==1 and project.objects[0].color=='#0000ff'
+    restored=import_svg_text(stats['svg'])
+    assert len(restored.objects)==1 and restored.objects[0].color=='#0000ff'
+
+
+def test_group_transparency_is_disclosed_in_conversion(tmp_path):
+    path=tmp_path/'group-opacity.svg'
+    path.write_text('<svg width="20" height="20"><g opacity="50%"><rect opacity="1" width="10" height="10" fill="red"/></g></svg>')
+    project,image,stats=vector_artwork(path,width=20)
+    assert len(project.objects)==1
+    assert 'Partial transparency is imported as opaque thread color.' in stats['notes']

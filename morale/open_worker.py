@@ -3,9 +3,7 @@ import json
 from pathlib import Path
 import sys
 
-from .model import Project
-
-MAX_PROJECT_BYTES = 50_000_000
+from .model import Project, MAX_PROJECT_BYTES
 
 
 def decode(path):

@@ -18,6 +18,24 @@ from .engine import generate
 
 
 class EditingMixin:
+    def fabric_dialog(self):
+        from .fabric_dialog import FabricDialog
+        from .fabric import selection_settings
+        dialog=FabricDialog(self,initial_settings=selection_settings(self.selected_objects()))
+        try:
+            if dialog.exec()==dialog.DialogCode.Accepted:
+                try:self.apply_fabric_settings(dialog.settings())
+                except ValueError as exc:self.error(str(exc))
+        finally:dialog.deleteLater()
+
+    def apply_fabric_settings(self,settings):
+        from .fabric import apply_fabric
+        candidate,count=apply_fabric(self.project,self.selected_ids,settings)
+        generate(candidate)
+        if candidate.objects!=self.project.objects:
+            self.commit(lambda:setattr(self.project,'objects',candidate.objects))
+        self.statusBar().showMessage(f'Fabric settings applied to {count} fill/satin objects.')
+
     def routing_dialog(self):
         obj = self.selected_object()
         if obj is None:
@@ -224,6 +242,8 @@ class EditingMixin:
         candidate.rotation = 0
         candidate.motif_reflected ^= candidate.flip_x ^ candidate.flip_y
         candidate.flip_x = candidate.flip_y = False
+        from .ripple_fill import preserve_center
+        preserve_center(obj,candidate)
         candidate.points = [[(x - candidate.x) / candidate.width, (y - candidate.y) / candidate.height] for x, y in points]
         Project.loads(Project(objects=[candidate]).dumps())
         index = self.project.objects.index(obj)
