@@ -3,30 +3,12 @@
 Morale is pre-1.0. Stitch output has not been validated by physical sew-outs;
 test on scrap fabric before sewing a finished piece.
 
-## Unreleased
+## 0.4.0 — 2026-10-30
 
-### Designing
-- **Design → Test swatches…**: copies of the selected parts with one setting
-  (row spacing, pull compensation, stitch length or fill angle) stepped across
-  2–9 values, each labelled, as a new design to sew on your own fabric.
-- **Edit → Copy / Paste stitch settings** and **Select same stitch type**.
-- **Choose where a fill starts and ends** in Edit → Sewing start and direction…
-  (renamed from Path start and direction), so the thread comes in and leaves near
-  the neighbouring parts.
-
-### Stitches
-- With *Connect safe fill rows* and *Route disconnected fill runs* both on, fills
-  travel inside the shape between sections instead of jumping across it.
-- Long satin stitches are split at staggered points, so the splits do not line
-  up into a groove down a wide column.
-
-Several of these ideas come from ZigZag (Apache-2.0), credited in
+Cleaner satin columns, sharp corners, test swatches for your own fabric, richer
+SVG import and fabric starting points. Stitch output is still not validated by
+physical sew-outs. Several ideas come from ZigZag (Apache-2.0), credited in
 THIRD_PARTY_NOTICES.md.
-
-## 0.4.0 — 2026-10-29
-
-Cleaner satin columns, sharp corners, richer SVG import and fabric starting
-points. Stitch output is still not validated by physical sew-outs.
 
 ### Satin
 - **Sharp corners are sewn instead of refused.** When a satin column turns a
@@ -39,6 +21,8 @@ points. Stitch output is still not validated by physical sew-outs.
 - **No more jump back to the start of a column.** Underlay now runs out and back
   along the column, so the top stitches start where the underlay finishes. The
   top stitches keep the direction you drew. Satin lettering benefits too.
+- **Long satin stitches are split at staggered points**, so the splits do not line
+  up into a groove down a wide column.
 - **Satin corners sew-out coupon** (`python -m morale.coupons --coupon
   satin-corners`, or File → Load sewout coupon…): corners from 120° to 30° in 2 and
   4 mm columns.
@@ -64,6 +48,16 @@ points. Stitch output is still not validated by physical sew-outs.
   monograms. Extra-large font sizes are available.
 
 ### Designing
+- **Design → Test swatches…**: copies of the selected parts with one setting
+  (row spacing, pull compensation, stitch length or fill angle) stepped across
+  2–9 values, each labelled, as a new design to sew on your own fabric.
+- **Edit → Copy / Paste stitch settings** and **Select same stitch type**.
+- **Choose where a fill starts and ends** in Edit → Sewing start and direction…
+  (renamed from Path start and direction), so the thread comes in and leaves near
+  the neighbouring parts.
+- **Fills can travel inside the shape** between sections instead of jumping
+  across it, when *Connect safe fill rows* and *Route disconnected fill runs* are
+  both on.
 - **Circular ripple fill** with an adjustable centre.
 - **View → Layout guides…**: straight guide lines that objects snap to.
 - **Design → Design notes…**: notes saved with the project, printed on sew-out
