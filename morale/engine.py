@@ -147,19 +147,22 @@ def triple_run(stitches):
 def satin(points, spacing, maximum, compensation=0, strict=True):
     """Alternate rails sampled at half row spacing, splitting long spans.
 
-    ``strict`` rejects rail cells that fold, cross or overlap earlier cells. Hand-digitized lettering
+    ``strict`` turns corners whose rungs cross into fans, then rejects rail cells
+    that still fold, cross or overlap earlier cells. Hand-digitized lettering
     turns tight curves with slightly concave cells, which sew as designed, so
-    lettering columns pass ``strict=False``.
+    lettering columns pass ``strict=False``. Crowded landings on the inside of
+    curves are shortened (see satin_geometry.short_stitch_targets).
     """
+    from .satin_geometry import pivot_corners, short_stitch_targets, validate_cells
     if isinstance(compensation, bool) or not math.isfinite(compensation) or not 0 <= compensation <= 2:
         raise ValueError("Pull compensation must be between 0 and 2 mm per side.")
     if len(points) < 4 or len(points) % 2:
         raise ValueError("Satin needs at least two complete rail pairs.")
     pairs = list(zip(points[::2], points[1::2]))
-    stations = [pairs[0]]
     if strict:
-        from .satin_geometry import validate_cells
+        pairs = pivot_corners(pairs)
         validate_cells(pairs)
+    stations = [pairs[0]]
     for (left, right), (next_left, next_right) in zip(pairs, pairs[1:]):
         distance = max(math.dist(left, next_left), math.dist(right, next_right))
         count = max(1, math.ceil(distance / (spacing / 2)))
@@ -179,13 +182,13 @@ def satin(points, spacing, maximum, compensation=0, strict=True):
             dx, dy = (right[0]-left[0])*compensation/width, (right[1]-left[1])*compensation/width
             expanded.append(((left[0]-dx, left[1]-dy), (right[0]+dx, right[1]+dy)))
         if strict:
+            expanded = pivot_corners(expanded)
             try:validate_cells(expanded)
             except ValueError as exc:
                 raise ValueError(f'Pull compensation produces invalid satin rails: {exc} Reduce compensation or split the column.') from exc
         stations = expanded
     result = [Stitch(*stations[0][0], "jump")]
-    for i, pair in enumerate(stations):
-        target = pair[i % 2]
+    for target in short_stitch_targets(stations):
         previous = (result[-1].x, result[-1].y)
         if math.dist(previous, target) > .001:
             result.extend(segment(previous, target, maximum))

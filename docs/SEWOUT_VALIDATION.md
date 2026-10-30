@@ -39,6 +39,7 @@ names:
 | `jumps` | Jumps of 5–40 mm, with and without trims |
 | `lettering` | Capitals and lowercase in an embroidery font at 6–15 mm |
 | `branch-joins` | Satin branches joined with exact, 0.3 mm and 0.6 mm overlaps |
+| `satin-corners` | Sharp satin corners from 120° to 30°, 2 and 4 mm wide |
 
 Each coupon folder holds machine files (PES, PES v1, EXP, DST), the editable
 project, an actual-size placement PDF, a thread chart, `metadata.json`,

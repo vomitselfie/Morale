@@ -1,5 +1,102 @@
-"""Global overlap checks for locally convex satin rail cells."""
+"""Satin rail geometry: corner pivots, short stitches and overlap checks."""
 import math
+
+# Where landings on one rail come closer than this, alternate stitches stop
+# short of that rail by a fraction of the column width, as Ink/Stitch does.
+SHORT_STITCH_DISTANCE = .25
+SHORT_STITCH_INSET = .15
+# Rungs may pivot where they cross within this fraction of their length from
+# the same rail.
+PIVOT_LIMIT = .45
+
+
+def _crossing(a, b, c, d):
+    """Parameters (t, u) where segments a-b and c-d meet, ends included."""
+    rx, ry, sx, sy = b[0]-a[0], b[1]-a[1], d[0]-c[0], d[1]-c[1]
+    denominator = rx*sy - ry*sx
+    if abs(denominator) < 1e-12:
+        return None
+    t = ((c[0]-a[0])*sy - (c[1]-a[1])*sx) / denominator
+    u = ((c[0]-a[0])*ry - (c[1]-a[1])*rx) / denominator
+    return (t, u) if -1e-9 <= t <= 1+1e-9 and -1e-9 <= u <= 1+1e-9 else None
+
+
+def clip_rail_loops(rail, limit):
+    """Cut the small loop a rail makes past a sharp inner corner.
+
+    Rungs drawn square to each side of a corner overshoot its inner point, so
+    the inner rail crosses itself. Points on the loop move to the crossing.
+    Only loops up to ``limit`` mm long are cut; longer ones are real overlaps.
+    """
+    rail = list(rail)
+    j = 0
+    while j < len(rail) - 3:
+        length, k = math.dist(rail[j], rail[j+1]), j + 1
+        while k < len(rail) - 1 and length <= limit:
+            crossing = _crossing(rail[j], rail[j+1], rail[k], rail[k+1]) if k > j + 1 else None
+            if crossing is not None:  # Includes loops closing on a shared vertex.
+                t = crossing[0]
+                point = (rail[j][0] + (rail[j+1][0]-rail[j][0])*t, rail[j][1] + (rail[j+1][1]-rail[j][1])*t)
+                rail[j+1:k+1] = [point] * (k - j)
+                break
+            length += math.dist(rail[k], rail[k+1])
+            k += 1
+        j = k if k < len(rail) - 1 and length <= limit else j + 1
+    return rail
+
+
+def pivot_corners(pairs):
+    """Turn sharp corners into fans instead of folds.
+
+    Inside a corner tighter than the column is wide, the inner rail loops past
+    the corner point and consecutive rungs cross before reaching it, which
+    would sew bow ties and overlapping stitches. The loop is cut at the corner
+    point and crossing rungs end where they cross, so the stitches fan around
+    that point. The input is not changed; cells that still fold or overlap are
+    left for ``validate_cells`` to report.
+    """
+    pairs = [tuple(pair) for pair in pairs]
+    if len(pairs) > 2:
+        limit = 8 * max(math.dist(left, right) for left, right in pairs)
+        lefts = clip_rail_loops([left for left, _ in pairs], limit)
+        rights = clip_rail_loops([right for _, right in pairs], limit)
+        pairs = list(zip(lefts, rights))
+    for i in range(len(pairs) - 1):
+        (left, right), (next_left, next_right) = pairs[i], pairs[i+1]
+        crossing = _crossing(left, right, next_left, next_right)
+        if crossing is None:
+            continue
+        t, u = crossing
+        pivot = (left[0] + (right[0]-left[0])*t, left[1] + (right[1]-left[1])*t)
+        # A corner's rungs cross near its inner rail. Rungs crossing mid-column
+        # are swapped or folded rails, which a fan would silently cut in half.
+        if max(t, u) < PIVOT_LIMIT and max(math.dist(left, pivot), math.dist(next_left, pivot)) > 1e-9:
+            pairs[i], pairs[i+1] = (pivot, right), (pivot, next_right)
+        elif min(t, u) > 1 - PIVOT_LIMIT and max(math.dist(right, pivot), math.dist(next_right, pivot)) > 1e-9:
+            pairs[i], pairs[i+1] = (left, pivot), (next_left, pivot)
+    return pairs
+
+
+def short_stitch_targets(stations, distance=SHORT_STITCH_DISTANCE, inset=SHORT_STITCH_INSET):
+    """Needle landings for alternating satin stitches, shortening crowded ones.
+
+    Station ``i`` lands on rail ``i % 2``. A landing closer than ``distance`` to
+    the previous full landing on the same rail is moved toward the other rail,
+    unless the previous one was already shortened, so a fan alternates full and
+    short stitches instead of piling thread on its pivot.
+    """
+    targets, previous = [], [None, None]
+    for i, pair in enumerate(stations):
+        side = i % 2
+        target, other = pair[side], pair[1-side]
+        last = previous[side]
+        if last is not None and not last[1] and math.dist(last[0], target) < distance:
+            target = (target[0] + (other[0]-target[0])*inset, target[1] + (other[1]-target[1])*inset)
+            previous[side] = (pair[side], True)
+        else:
+            previous[side] = (target, False)
+        targets.append(target)
+    return targets
 
 
 def validate_cells(pairs):

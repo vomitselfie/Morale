@@ -36,7 +36,8 @@ def _normalized(points, **settings):
     cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
     w, h = max(.1, max(xs) - min(xs)), max(.1, max(ys) - min(ys))
     obj = DesignObject(x=cx, y=cy, width=w, height=h, color=THREAD["color"], thread=dict(THREAD["thread"]),
-                       points=[[(x - cx) / w, (y - cy) / h] for x, y in points])
+                       # Rounding can land a bounding point a hair outside the box.
+                       points=[[max(-.5, min(.5, (x - cx) / w)), max(-.5, min(.5, (y - cy) / h))] for x, y in points])
     for key, value in settings.items():
         setattr(obj, key, value)
     return obj
@@ -317,11 +318,30 @@ def ripple_spacing():
         'cutout clearance, puckering and thread breaks. These are decorative open fills, not solid coverage targets.')
 
 
+def satin_corners():
+    """Sharp satin corners, which Morale sews as fans around the inner corner."""
+    tests=[]
+    for row,width in enumerate((2.,4.)):
+        for column,angle in enumerate((120,90,60,45,30)):
+            half=math.radians(angle)/2;leg=12 if angle>=60 else 14
+            tip=(-32+16*column,-4+32*row)
+            line=[(tip[0]-leg*math.sin(half),tip[1]-leg*math.cos(half)),tip,(tip[0]+leg*math.sin(half),tip[1]-leg*math.cos(half))]
+            obj=satin(line,width,f'Corner {angle}°, {width:g} mm')
+            tests.append(test(obj,shape='corner',corner_angle_degrees=angle,width_mm=width,
+                              leg_length_mm=leg,underlay_style=obj.underlay_style))
+    return 'Satin corners',tests,('Each V is one satin column turning a sharp corner. Morale sews the inside of the '
+        'corner as a fan around one point, shortening alternate stitches there so thread does not pile up. '
+        'Top row 2 mm wide, bottom row 4 mm; corners 120° to 30° left to right. Look for a lump, hole or '
+        'thread break at the inner point, gaps at the outer edge, and puckering. These treatments are not yet '
+        'physically validated.')
+
+
 COUPONS = {
     "satin-width": satin_width, "pull-compensation": pull_compensation, "fill-density": fill_density,
     "fill-angles": fill_angles, "underlay": underlay, "small-fills": small_fills, "stitch-length": stitch_length,
     "tiny-stitches": tiny_stitches, "layering": layering, "jumps": jumps, "lettering": lettering,
     "branch-joins": branch_joins, "fabric-profiles": fabric_profiles, "ripple-spacing": ripple_spacing,
+    "satin-corners": satin_corners,
 }
 
 
