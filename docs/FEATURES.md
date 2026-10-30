@@ -107,6 +107,12 @@ is an overview, not an actual-size placement template.
   stepped across 2–9 values in a grid that must fit the hoop, each labelled in a
   small embroidery font and listed in the design notes. The current design is
   only replaced after the usual unsaved-work prompt. Idea after ZigZag.
+- **Machine companions:** exporting EXP also writes the matching `.inf` thread
+  color file Bernina software saves beside its designs, in the order the EXP
+  changes thread (pauses included); coupon packs include it with a checksum.
+  The **Brother Embroidery threads** chart adds Brother's 61 catalog numbers
+  (from Respira via ZigZag, names from the PEC palette) to thread matching and
+  artwork conversion. Neither has been checked on a machine or against spools.
 - **Blanket, meander and cross-stitch** (after ZigZag): blanket (E-stitch) sews
   along closed outlines with prongs into the shape (or left of open paths), with
   editable prong spacing and length; meander is one repeatable random walk

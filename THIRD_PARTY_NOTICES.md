@@ -86,6 +86,11 @@ https://bottosson.github.io/posts/colorwrong/
 
 ## ZigZag
 
+The Brother Embroidery thread numbers in `morale/brother_threads.py` come from
+Respira's BrotherColor.json (https://github.com/jhbruhn/respira, Copyright
+Jan-Henrik Bruhn, Apache License 2.0) by way of ZigZag; the Apache License text
+below applies.
+
 Some satin and travel-routing techniques in `morale/satin_geometry.py` and
 `morale/fill_travel.py`, the blanket, meander and cross-stitch patterns in
 `morale/decorative.py`, S-stitch satin, and the SVG layer-name settings

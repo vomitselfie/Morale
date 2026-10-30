@@ -1212,8 +1212,11 @@ The thread catalog also exports its filtered, displayed palette to INF or EDR.
 Export preserves order and duplicate colors, writes INF string lengths in UTF-8
 bytes, and replaces the destination atomically. INF retains descriptions/chart
 names; EDR contains RGB only. The native dialog explains omitted metadata and
-disables catalog export while showing proposed matches. This is catalog export;
-exporting a design's sewing-order companion palette remains pending. Regression
+disables catalog export while showing proposed matches. This is catalog export.
+Machine export of EXP now also writes a sewing-order companion INF built from the
+exported thread list, so pauses encoded as duplicate colors stay aligned; tests
+compare its color count with the reopened EXP. Machine display of the INF has not
+been checked on a Bernina. Regression
 checks reopen Unicode INF output through the installed pyembroidery reader.
 
 ### Conversion underlay controls

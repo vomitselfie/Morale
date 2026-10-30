@@ -96,7 +96,7 @@ def test_cached_custom_catalog_survives_switching_and_search_limits_matching():
     dialog=CatalogDialog('#ff0000',2,cached=('Personal',entries()))
     try:
         dialog.catalog_choice.setCurrentIndex(0)
-        dialog.catalog_choice.setCurrentIndex(2)
+        dialog.catalog_choice.setCurrentIndex(dialog.catalog_choice.findText('Personal'))
         assert dialog.model.rowCount()==2
         dialog.search.setText('blue')
         dialog.match_colors()

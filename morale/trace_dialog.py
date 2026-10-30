@@ -137,7 +137,8 @@ class TraceDialog(QDialog):
         form=stitch_form
         thread_row=QHBoxLayout()
         self.thread_catalog=QComboBox()
-        for title,value in (('Keep artwork colors',''),('PEC fixed palette','PEC fixed palette'),('JEF fixed palette','JEF fixed palette')):
+        from .catalogs import BUILTIN_CATALOGS
+        for title,value in (('Keep artwork colors',''),*((name,name) for name in BUILTIN_CATALOGS)):
             self.thread_catalog.addItem(title,value)
         self.thread_catalog.setAccessibleName('Trace thread chart')
         self.thread_catalog.setToolTip('Built-ins are machine palettes; import CSV, INF or EDR to use your own thread palette. The traced SVG retains artwork colors.')

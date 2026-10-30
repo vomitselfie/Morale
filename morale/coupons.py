@@ -522,10 +522,13 @@ def build_coupon(name, destination):
     blocks = generate(project)
     project.save(root / f"{name}.morale")
     files = []
+    companions = []  # Thread-color files beside machine files; no stitches to verify.
     verification = {}
-    for filename, options in [(f"{name}.pes", {}), (f"{name}-v1.pes", {"pes_version": 1}), (f"{name}.exp", {}), (f"{name}.dst", {})]:
-        export_machine(project, root / filename, blocks, **options)
+    for filename, options in [(f"{name}.pes", {}), (f"{name}-v1.pes", {"pes_version": 1}), (f"{name}.exp", {"companion": True}), (f"{name}.dst", {})]:
+        result = export_machine(project, root / filename, blocks, **options)
         files.append(filename)
+        if result.get("companion"):
+            companions.append(Path(result["companion"]).name)
         try:verification[filename]=verify_export(blocks,root/filename)
         except Exception as exc:
             verification[filename]={'verified':False,'problems':[f'Export verification could not complete: {exc}']}
@@ -544,9 +547,9 @@ def build_coupon(name, destination):
     (root / "evaluation.json").write_text(json.dumps(evaluation, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     report = {"coupon": name, "title": title, "morale_version": __version__, "field_mm": [100, 100],
               "sewn_bounds_mm": bounds, "stitches": len(stitches), "objects": len(project.objects),
-              "files": files, "physical_sewouts": False,
+              "files": files, "companion_files": companions, "physical_sewouts": False,
               "export_verification": verification,
-              "exports_sha256": {filename:hashlib.sha256((root/filename).read_bytes()).hexdigest() for filename in files}}
+              "exports_sha256": {filename:hashlib.sha256((root/filename).read_bytes()).hexdigest() for filename in files + companions}}
     (root / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     (root / "README.txt").write_text(README.format(title=title, name=name, guidance=guidance,
                                                    verification='\n\n'.join(verification_text(result,filename) for filename,result in verification.items()),
@@ -568,6 +571,7 @@ Files
 -----
 {name}.pes / {name}-v1.pes   PES candidates for Brother testing
 {name}.exp                   EXP candidate for Bernina testing
+{name}.inf                   Thread colours for the EXP; copy it to the machine with the EXP
 {name}.dst                   DST alternative (no colour information)
 {name}.morale                Editable Morale project
 placement.pdf                Actual-size template; print at 100% and check its ruler

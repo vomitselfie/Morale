@@ -6,7 +6,7 @@ from PySide6.QtCore import Qt, QAbstractTableModel,QTimer,QModelIndex
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QLabel,QComboBox,QPushButton,QLineEdit,QTableView,QAbstractItemView,QDialogButtonBox,QFileDialog,QMessageBox,QHeaderView,QTabWidget
 
-from .catalogs import builtin_catalog,read_catalog,distance_squared,nearest_thread
+from .catalogs import BUILTIN_CATALOGS,builtin_catalog,read_catalog,distance_squared,nearest_thread
 
 
 class CatalogModel(QAbstractTableModel):
@@ -74,7 +74,7 @@ class CatalogDialog(QDialog):
         layout.addWidget(text)
         row=QHBoxLayout()
         self.catalog_choice=QComboBox()
-        self.catalog_choice.addItems(['PEC fixed palette','JEF fixed palette'])
+        self.catalog_choice.addItems(list(BUILTIN_CATALOGS))
         self.catalog_choice.setAccessibleName('Thread catalog')
         row.addWidget(self.catalog_choice,1)
         load=QPushButton('Import palette…')
@@ -108,7 +108,7 @@ class CatalogDialog(QDialog):
         self.match_status=QLabel();layout.addWidget(self.match_status)
         self.match_timer=QTimer(self);self.match_timer.setInterval(0);self.match_timer.timeout.connect(self.advance_matches)
         self.tabs.currentChanged.connect(self.refresh_matches)
-        note=QLabel('Built-ins are fixed machine-format palettes, not verified current spool inventories. CSV requires color (#RRGGBB); optional columns: brand, catalog_number, description, weight, chart, details. Morale thread-chart CSVs also work; other columns are ignored. INF preserves RGB colors, descriptions and chart names; EDR provides RGB colors only.')
+        note=QLabel('Brother Embroidery threads lists Brother catalog numbers as published by the Respira project (not checked against spools). The PEC and JEF built-ins are fixed machine-format palettes, not verified current spool inventories. CSV requires color (#RRGGBB); optional columns: brand, catalog_number, description, weight, chart, details. Morale thread-chart CSVs also work; other columns are ignored. INF preserves RGB colors, descriptions and chart names; EDR provides RGB colors only.')
         note.setWordWrap(True)
         layout.addWidget(note)
         controls=QDialogButtonBox(QDialogButtonBox.StandardButton.Ok|QDialogButtonBox.StandardButton.Cancel)
@@ -178,7 +178,7 @@ class CatalogDialog(QDialog):
         self._closed=True;self.match_timer.stop();super().done(result)
 
     def choose_catalog(self,name):
-        if name in {'PEC fixed palette','JEF fixed palette'}:
+        if name in BUILTIN_CATALOGS:
             self.catalog_name,self.catalog=name,builtin_catalog(name)
         else:
             self.catalog_name,self.catalog=self.custom

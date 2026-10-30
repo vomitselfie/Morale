@@ -20,7 +20,7 @@ def test_portable_preset_round_trip_and_native_worker_options(dialog,tmp_path):
     target=TraceDialog('different.png')
     try:
         target.width.setValue(55);target.keep_reference.setChecked(False)
-        target.thread_catalog.addItem('My chart','/private/chart.csv');target.thread_catalog.setCurrentIndex(3)
+        target.thread_catalog.addItem('My chart','/private/chart.csv');target.thread_catalog.setCurrentIndex(target.thread_catalog.count()-1)
         target.overrides={'0':'running'};target.seams={'0':30}
         target.apply_preset(load_preset(path))
         assert target.preset_settings()==settings

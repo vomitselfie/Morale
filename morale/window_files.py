@@ -349,9 +349,11 @@ class FileWorkflowsMixin:
             if not self.confirm_replacement(path):
                 return
         try:
-            result=export_machine(self.project, path, self.blocks, pes_version=1 if "PES v1" in selected_filter else 6)
+            result=export_machine(self.project, path, self.blocks, pes_version=1 if "PES v1" in selected_filter else 6, companion=True)
             self.statusBar().showMessage(f"Exported {path.name} · {result['prepared_stitches']:,} stitches prepared · {result['subdivision_added_stitches']:,} positions added")
             notes = [export_summary(result),*export_notes(path.suffix.lower(), 1 if "PES v1" in selected_filter else 6)]
+            if result.get("companion"):
+                notes.insert(0, f"Also saved {Path(result['companion']).name}, the thread colours for Bernina machines. Copy both files to the machine together.")
             # Reopen the file with the real reader so format problems are visible now.
             from .export_verify import verify_export, verification_text
             try:

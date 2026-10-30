@@ -2,7 +2,7 @@
 from copy import deepcopy
 from pathlib import Path
 import math
-from .catalogs import builtin_catalog,read_catalog,distance_squared
+from .catalogs import BUILTIN_CATALOGS,builtin_catalog,read_catalog,distance_squared
 
 
 def match_trace_threads(project,catalog,metric='oklab',distinct=False):
@@ -10,7 +10,7 @@ def match_trace_threads(project,catalog,metric='oklab',distinct=False):
     if not isinstance(catalog,str): raise ValueError('Invalid thread chart selection.')
     if type(distinct) is not bool: raise ValueError('Invalid distinct thread planning setting.')
     if not catalog: return deepcopy(project),[]
-    if catalog in {'PEC fixed palette','JEF fixed palette'}:
+    if catalog in BUILTIN_CATALOGS:
         entries=builtin_catalog(catalog);name=catalog
     else:
         path=Path(catalog);before=path.stat();entries=read_catalog(path);after=path.stat()

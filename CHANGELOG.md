@@ -5,6 +5,12 @@ test on scrap fabric before sewing a finished piece.
 
 ## Unreleased
 
+### Machines and threads
+- **Bernina colour files:** exporting EXP also saves a matching `.inf` thread
+  colour file, as Bernina's own software does. Copy both to the machine.
+- **Brother Embroidery threads** chart with the catalog numbers printed on
+  Brother spools, for matching colours and converting artwork.
+
 ### Stitches
 - **New stitch types:** *Blanket (E-stitch)* for appliqué edges, *Meander* (a
   soft quilting line) and *Cross-stitch*. Satin columns can be sewn as

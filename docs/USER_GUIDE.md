@@ -203,7 +203,8 @@ clear edges. Photographs do not convert well yet.
   the properties panel.
 - **To match real threads:** select the parts, then choose
   **Edit → Thread catalog / match colors…**. Pick a thread chart and click the
-  matching thread, or let Morale match every colour at once.
+  matching thread, or let Morale match every colour at once. *Brother
+  Embroidery threads* shows the numbers printed on Brother spools.
 
 Screen colours are only a guide. Hold your real thread spools up to the design
 before sewing.
@@ -255,6 +256,8 @@ again.
    says **Export verified**, the file matches. If it says **Check the exported
    file**, something changed while saving: try a different file type your
    machine accepts.
+   For **EXP** (Bernina), Morale also saves a file with the same name ending in
+   **.inf**. It holds the thread colours; copy both files to your machine.
 4. Put the USB stick in your machine (or use your machine's usual transfer
    method) and open the design there.
 

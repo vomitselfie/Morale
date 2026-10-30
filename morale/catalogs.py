@@ -15,7 +15,13 @@ class ThreadEntry:
     metadata: dict
 
 
+BUILTIN_CATALOGS=('Brother Embroidery threads','PEC fixed palette','JEF fixed palette')
+
+
 def builtin_catalog(name):
+    if name=='Brother Embroidery threads':
+        from .brother_threads import brother_catalog
+        return brother_catalog()
     if name=='PEC fixed palette':
         from pyembroidery.EmbThreadPec import get_thread_set
     elif name=='JEF fixed palette':

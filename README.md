@@ -79,7 +79,7 @@ The [user guide](docs/USER_GUIDE.md) explains each step with more detail.
 | Your machine | Choose |
 | --- | --- |
 | Brother, Baby Lock, Deco | **PES** (if an older machine refuses it, choose PES version 1) |
-| Bernina | **EXP** |
+| Bernina | **EXP** (Morale also saves a matching **.inf** colour file; copy both to the machine) |
 | Janome, Elna, Kenmore | **JEF** |
 | Husqvarna Viking, Pfaff | **VP3**. VP3 export was fixed recently, so confirm your first design on scrap fabric; these machines usually also accept **DST** |
 | Singer | **XXX** |

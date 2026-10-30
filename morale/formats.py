@@ -223,7 +223,9 @@ def to_pattern(project, blocks=None):
     return pattern
 
 
-def export_machine(project, path, blocks=None, *, pes_version=6):
+def export_machine(project, path, blocks=None, *, pes_version=6, companion=False):
+    """Write a machine file. With ``companion``, an EXP also gets the .INF
+    thread-color file that Bernina software saves beside it."""
     path = Path(path)
     if path.suffix.lower() not in EXPORT_FORMATS:
         raise ValueError("Choose a supported machine file: " + ", ".join(sorted(EXPORT_FORMATS)))
@@ -286,9 +288,24 @@ def export_machine(project, path, blocks=None, *, pes_version=6):
         if temporary is not None:
             temporary.unlink(missing_ok=True)
 
-    return {'format':path.suffix.lower(),'source_stitches':source_stitches,
+    result={'format':path.suffix.lower(),'source_stitches':source_stitches,
             'prepared_stitches':source_stitches+added_stitches,'subdivision_added_stitches':added_stitches,
             'maximum_prepared_span_mm':maximum/10}
+    if companion and path.suffix.lower()=='.exp':
+        result['companion']=str(write_inf_companion(pattern,path))
+    return result
+
+
+def write_inf_companion(pattern,path):
+    """The design's colors in the order the EXP changes thread, including the
+    duplicates that stand for operator pauses, so the two files agree."""
+    from .catalogs import ThreadEntry
+    from .thread_palette_files import write_palette
+    entries=[ThreadEntry(thread.hex_color(),{'description':thread.description or '','chart':thread.chart or ''})
+             for thread in pattern.threadlist]
+    target=path.with_suffix('.inf')
+    write_palette(target,entries)
+    return target
 
 
 def export_summary(result):
