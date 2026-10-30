@@ -3,6 +3,10 @@ import os
 
 import pytest
 
+# Desktop sessions export their own platform (Wayland, X11), where focus and
+# shortcuts depend on the window manager. Tests assume the offscreen platform.
+os.environ["QT_QPA_PLATFORM"] = os.environ.get("MORALE_TEST_QPA_PLATFORM", "offscreen")
+
 
 @pytest.fixture(autouse=True)
 def fail_on_unexpected_message_box(monkeypatch):

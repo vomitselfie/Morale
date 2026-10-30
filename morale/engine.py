@@ -267,25 +267,13 @@ def finish_stitches(stitches, tie_in=False, tie_off=False, trim_after=False, jum
 
 
 def generate_underlay(obj):
-    from .underlay import inset_rings, inset_rails
+    from .underlay import inset_rings
     if not obj.underlay:
         return []
     style = obj.underlay_style
     if obj.kind == "satin":
-        if style not in {"auto", "zigzag", "center_zigzag"}:
-            raise ValueError("Satin underlay supports center run, zigzag, or both.")
-        rails = obj.transform(obj.points)
-        center = [((a[0]+b[0])/2,(a[1]+b[1])/2) for a,b in zip(rails[::2],rails[1::2])]
-        result = running(center,obj.stitch_length,closed=False) if style in {"auto","center_zigzag"} else []
-        if style in {"zigzag","center_zigzag"}:
-            supports = inset_rails(rails,obj.underlay_inset)
-            # Fully collapsed support rails form a center run, not invalid satin.
-            if all(math.dist(a,b)<1e-8 for a,b in zip(supports[::2],supports[1::2])):
-                if not result:
-                    result = running(center,obj.stitch_length,closed=False)
-            else:
-                result += satin(supports,obj.underlay_spacing,obj.satin_max)
-        return result
+        passes, _ = satin_underlay_runs(obj, obj.transform(obj.points), style)
+        return [s for run in passes for s in run.stitches]
     if style not in {"auto", "edge", "sparse", "edge_sparse"}:
         raise ValueError("Fill underlay supports edge run, sparse fill, or both.")
     rings = inset_rings(obj.rings(),obj.underlay_inset)
@@ -309,24 +297,53 @@ def generate_underlay(obj):
     return result
 
 
+def satin_underlay_runs(obj, rails, style):
+    """Satin underlay passes in their natural direction, and the center run that
+    can bring the needle back to the column start."""
+    from .generated import GeneratedRun
+    from .underlay import inset_rails
+    if style not in {"auto", "zigzag", "center_zigzag"}:
+        raise ValueError("Satin underlay supports center run, zigzag, or both.")
+    center_points = [((a[0]+b[0])/2, (a[1]+b[1])/2) for a, b in zip(rails[::2], rails[1::2])]
+    center = GeneratedRun(running(center_points, obj.stitch_length, closed=False), "underlay", reversible=True)
+    passes = [center] if style in {"auto", "center_zigzag"} else []
+    if style in {"zigzag", "center_zigzag"}:
+        supports = inset_rails(rails, obj.underlay_inset)
+        # Fully collapsed support rails form a center run, not invalid satin.
+        if all(math.dist(a, b) < 1e-8 for a, b in zip(supports[::2], supports[1::2])):
+            if not passes:
+                passes = [center]
+        else:
+            passes.append(GeneratedRun(satin(supports, obj.underlay_spacing, obj.satin_max), "underlay", reversible=True))
+    return passes, center
+
+
+def satin_column_runs(obj, rails, style, strict=True):
+    """Underlay and top passes for one satin column, planned so that the column
+    starts and ends where its top pass does (see generated.plan_column)."""
+    from .generated import GeneratedRun, plan_column
+    top = GeneratedRun(satin(rails, obj.spacing, obj.satin_max, obj.pull_compensation, strict=strict), "top", reversible=True)
+    if not obj.underlay:
+        return [top]
+    passes, center = satin_underlay_runs(obj, rails, style)
+    return plan_column(passes, top, center)
+
+
 def lettering_columns(obj):
     """Sew planned satin-lettering pieces in text order."""
-    result = []
+    from .generated import GeneratedRun
+    runs = []
     for piece in obj.lettering["columns"]:
         if "rails" in piece:
-            rails = obj.transform(piece["rails"])
-            if obj.underlay:
-                center = [((a[0]+b[0])/2, (a[1]+b[1])/2) for a, b in zip(rails[::2], rails[1::2])]
-                result += running(center, obj.stitch_length, closed=False)
-            result += satin(rails, obj.spacing, obj.satin_max, obj.pull_compensation, strict=False)
+            runs += satin_column_runs(obj, obj.transform(piece["rails"]), "auto", strict=False)
         elif "run" in piece:
-            result += running(obj.transform(piece["run"]), obj.stitch_length, closed=False)
+            runs.append(GeneratedRun(running(obj.transform(piece["run"]), obj.stitch_length, closed=False), "top"))
         else:
             rings = [obj.transform(ring) for ring in piece["fill"]]
-            result += fill(rings[0], obj.spacing, obj.stitch_length, obj.angle, obj.connect_fill, rings[1:], obj.pull_compensation)
-        if len(result) > MAX_STITCHES:
+            runs.append(GeneratedRun(fill(rings[0], obj.spacing, obj.stitch_length, obj.angle, obj.connect_fill, rings[1:], obj.pull_compensation), "top"))
+        if sum(len(run.stitches) for run in runs) > MAX_STITCHES:
             raise ValueError("Satin lettering exceeds the preview command limit.")
-    return result
+    return runs
 
 
 def contour_fill(rings,spacing,length):
@@ -351,56 +368,66 @@ def contour_fill(rings,spacing,length):
     return result
 
 
+def generate_object(obj):
+    """An object's stitches as structured passes, before cleanup and finishing."""
+    from .generated import GeneratedObject, GeneratedRun
+    rings = obj.rings()
+    if obj.kind == "compound" and obj.stitch_type == "satin":
+        return GeneratedObject(obj.id, lettering_columns(obj))
+    if obj.kind == "satin":
+        return GeneratedObject(obj.id, satin_column_runs(obj, obj.transform(obj.points), obj.underlay_style))
+    underlay = []
+    if obj.kind == "stitches":
+        positions = obj.transform([(s[0], s[1]) for s in obj.stitch_data])
+        stitches = [Stitch(x, y, raw[2]) for (x, y), raw in zip(positions, obj.stitch_data)]
+    elif obj.stitch_type in {"motif", "pattern"}:
+        from .motifs import motif_paths
+        from .pattern_fill import pattern_fill_paths
+        stitches=[]
+        for path in (pattern_fill_paths(obj) if obj.stitch_type == "pattern" else motif_paths(obj)):
+            stitches.append(Stitch(*path[0],"jump"))
+            for a,b in zip(path,path[1:]):
+                stitches += segment(a,b,obj.stitch_length)
+                if len(stitches)>MAX_STITCHES:
+                    raise ValueError("Motif stitches exceed the preview command limit.")
+    elif obj.stitch_type in {"running", "triple"}:
+        stitches = [s for ring in rings for s in running(ring, obj.stitch_length, obj.kind != "path")]
+        if obj.stitch_type == "triple":
+            stitches = triple_run(stitches)
+    else:
+        underlay = generate_underlay(obj)
+        stitches = []
+        if obj.stitch_type == "ripple":
+            from .ripple_fill import ripple_paths
+            for path in ripple_paths(obj):
+                stitches.append(Stitch(*path[0],"jump"))
+                for a,b in zip(path,path[1:]):
+                    stitches += segment(a,b,obj.stitch_length)
+                    if len(stitches)>MAX_STITCHES:
+                        raise ValueError("Ripple fill exceeds the preview command limit.")
+        elif obj.stitch_type == "contour":
+            stitches += contour_fill(rings,obj.spacing,obj.stitch_length)
+        else:
+            fill_stitches = fill(rings[0], obj.spacing, obj.stitch_length, obj.angle, obj.connect_fill, rings[1:], obj.pull_compensation,
+                             obj.gradient_end_spacing if obj.density_gradient else None, obj.gradient_reverse)
+            if obj.route_fill:
+                from .fill_routing import route_fill_runs
+                fill_stitches=route_fill_runs(fill_stitches)
+            stitches += fill_stitches
+    runs = [GeneratedRun(underlay, "underlay")] if underlay else []
+    if stitches:
+        runs.append(GeneratedRun(stitches, "top"))
+    return GeneratedObject(obj.id, runs)
+
+
 def generate(project):
     blocks = []
     total = 0
     for obj in project.objects:
         if not obj.visible:
             continue
-        points = obj.outline()
         rings = obj.rings()
-        if obj.kind == "stitches":
-            positions = obj.transform([(s[0], s[1]) for s in obj.stitch_data])
-            stitches = [Stitch(x, y, raw[2]) for (x, y), raw in zip(positions, obj.stitch_data)]
-        elif obj.stitch_type in {"motif", "pattern"}:
-            from .motifs import motif_paths
-            from .pattern_fill import pattern_fill_paths
-            stitches=[]
-            for path in (pattern_fill_paths(obj) if obj.stitch_type == "pattern" else motif_paths(obj)):
-                stitches.append(Stitch(*path[0],"jump"))
-                for a,b in zip(path,path[1:]):
-                    stitches += segment(a,b,obj.stitch_length)
-                    if len(stitches)>MAX_STITCHES:
-                        raise ValueError("Motif stitches exceed the preview command limit.")
-        elif obj.stitch_type in {"running", "triple"}:
-            stitches = [s for ring in rings for s in running(ring, obj.stitch_length, obj.kind != "path")]
-            if obj.stitch_type == "triple":
-                stitches = triple_run(stitches)
-        elif obj.kind == "compound" and obj.stitch_type == "satin":
-            stitches = lettering_columns(obj)
-        elif obj.kind == "satin":
-            rails = obj.transform(obj.points)
-            stitches = generate_underlay(obj)
-            stitches += satin(rails, obj.spacing, obj.satin_max, obj.pull_compensation)
-        else:
-            stitches = generate_underlay(obj)
-            if obj.stitch_type == "ripple":
-                from .ripple_fill import ripple_paths
-                for path in ripple_paths(obj):
-                    stitches.append(Stitch(*path[0],"jump"))
-                    for a,b in zip(path,path[1:]):
-                        stitches += segment(a,b,obj.stitch_length)
-                        if len(stitches)>MAX_STITCHES:
-                            raise ValueError("Ripple fill exceeds the preview command limit.")
-            elif obj.stitch_type == "contour":
-                stitches += contour_fill(rings,obj.spacing,obj.stitch_length)
-            else:
-                fill_stitches = fill(rings[0], obj.spacing, obj.stitch_length, obj.angle, obj.connect_fill, rings[1:], obj.pull_compensation,
-                                 obj.gradient_end_spacing if obj.density_gradient else None, obj.gradient_reverse)
-                if obj.route_fill:
-                    from .fill_routing import route_fill_runs
-                    fill_stitches=route_fill_runs(fill_stitches)
-                stitches += fill_stitches
+        stitches = generate_object(obj).stitches()
         if obj.kind != "stitches":
             segment_allowed=None
             if obj.stitch_type in {'ripple','contour','pattern'} and obj.minimum_stitch:
