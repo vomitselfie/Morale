@@ -125,7 +125,8 @@ def test_invalid_center_rejected_on_load_and_generation(value):
 
 def test_older_project_defaults_to_center():
     import json
-    project=Project(objects=[shape()]);raw=json.loads(project.dumps())
+    from project_files import flat_document
+    project=Project(objects=[shape()]);raw=flat_document(project)
     for key in ('ripple_center_x','ripple_center_y'):raw['objects'][0].pop(key)
     assert generate(Project.loads(json.dumps(raw)))==generate(project)
 

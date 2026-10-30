@@ -456,7 +456,10 @@ blocks with a notice. Sequin/specialist commands are rejected rather than discar
 Imported objects can be recolored, moved, rotated, resized, reordered, and combined
 with newly digitized shapes. Resizing imported stitches changes density rather
 than regenerating it. Save the result as a `.morale` project; source machine files
-are never overwritten by project saving. Schema v2 projects still load v1 data.
+are never overwritten by project saving. Projects are saved as schema v3, which
+groups each object's settings (shape, thread, stitch, fill, satin, underlay,
+motif, ripple, lettering, finishing); v1 and v2 projects still open. Morale 0.3
+and earlier cannot open v3 projects.
 
 ## Design library
 

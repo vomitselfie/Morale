@@ -102,6 +102,49 @@ class DesignObject:
                  self.y + px * sx * self.width * s + py * sy * self.height * c) for px, py in points]
 
 
+PROJECT_VERSION = 3
+
+# Saved objects (version 3) group their properties by purpose so a project file
+# reads like the properties panel. In memory, DesignObject stays flat. Every
+# field belongs to exactly one group.
+SETTING_GROUPS = {
+    "identity": ("id", "name", "group_id", "visible", "stage_note"),
+    "shape": ("kind", "x", "y", "width", "height", "rotation", "flip_x", "flip_y",
+              "points", "handles", "contours", "stitch_data"),
+    "thread": ("color", "thread", "color_break"),
+    "stitch": ("stitch_type", "spacing", "stitch_length", "angle", "pull_compensation", "minimum_stitch"),
+    "fill": ("connect_fill", "route_fill", "density_gradient", "gradient_end_spacing", "gradient_reverse"),
+    "satin": ("satin_max",),
+    "underlay": ("underlay", "underlay_style", "underlay_inset", "underlay_spacing"),
+    "motif": ("motif_pattern", "motif_width", "motif_height", "motif_spacing", "motif_row_spacing",
+              "custom_motif_paths", "custom_motif_name", "motif_reflected", "pattern_flip_x", "pattern_flip_y"),
+    "ripple": ("ripple_center_x", "ripple_center_y"),
+    "lettering": ("lettering",),
+    "finishing": ("tie_in", "tie_off", "trim_after", "stop_after", "jump_trim"),
+}
+
+
+def grouped_object(flat):
+    return {group: {key: flat[key] for key in keys} for group, keys in SETTING_GROUPS.items()}
+
+
+def flat_object(grouped):
+    """A version 3 saved object as DesignObject keyword arguments.
+
+    Missing groups or properties take their defaults, as missing properties do
+    in version 2 files. Unknown groups and properties filed under the wrong
+    group are rejected rather than guessed.
+    """
+    if not isinstance(grouped, dict) or set(grouped) - set(SETTING_GROUPS):
+        raise ValueError("Unsupported object properties.")
+    flat = {}
+    for group, values in grouped.items():
+        if not isinstance(values, dict) or set(values) - set(SETTING_GROUPS[group]):
+            raise ValueError("Unsupported object properties.")
+        flat.update(values)
+    return flat
+
+
 def validate_columns(columns, number):
     """Planned satin-lettering pieces in the object's normalized frame."""
     if not isinstance(columns, list) or not 1 <= len(columns) <= 2000:
@@ -147,13 +190,15 @@ class Project:
     notes: str = ""
 
     def dumps(self):
-        return json.dumps({"format": "morale", "version": 2, **asdict(self)}, indent=2, allow_nan=False)
+        data = asdict(self)
+        data["objects"] = [grouped_object(obj) for obj in data["objects"]]
+        return json.dumps({"format": "morale", "version": PROJECT_VERSION, **data}, indent=2, allow_nan=False)
 
     @classmethod
     def loads(cls, text):
         data = json.loads(text)
-        if not isinstance(data, dict) or data.get("format") != "morale" or type(data.get("version")) is not int or data.get("version") not in {1, 2}:
-            raise ValueError("This is not a supported Morale project (versions 1–2).")
+        if not isinstance(data, dict) or data.get("format") != "morale" or type(data.get("version")) is not int or data.get("version") not in {1, 2, 3}:
+            raise ValueError("This is not a supported Morale project (versions 1–3). It may need a newer Morale.")
         def number(value, low, high):
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not low <= value <= high:
                 raise ValueError(f"Expected a number between {low} and {high}.")
@@ -178,6 +223,8 @@ class Project:
         for raw in objects:
             if not isinstance(raw, dict):
                 raise ValueError("Invalid design object.")
+            if data["version"] >= 3:
+                raw = flat_object(raw)
             try:
                 obj = DesignObject(**raw)
             except TypeError as exc:

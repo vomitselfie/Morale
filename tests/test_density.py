@@ -133,7 +133,8 @@ def test_invalid_row_generator_settings(args):
 def test_legacy_project_without_gradient_fields_keeps_default_fill():
     import json
     obj=shape(); obj.density_gradient=False
-    data=json.loads(Project(objects=[obj]).dumps())
+    from project_files import flat_document
+    data=flat_document(Project(objects=[obj]))
     for key in ('density_gradient','gradient_end_spacing','gradient_reverse'): data['objects'][0].pop(key)
     restored=Project.loads(json.dumps(data))
     assert not restored.objects[0].density_gradient

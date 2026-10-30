@@ -135,7 +135,8 @@ def test_clipping_budget_rejects_excessively_complex_custom_fill():
 def test_legacy_project_has_no_pattern_setting_requirement():
     import json
     obj=DesignObject()
-    packet=json.loads(Project(objects=[obj]).dumps())
+    from project_files import flat_document
+    packet=flat_document(Project(objects=[obj]))
     for key in ('motif_row_spacing','pattern_flip_x','pattern_flip_y'): packet['objects'][0].pop(key)
     restored=Project.loads(json.dumps(packet))
     assert generate(restored)==generate(Project(objects=[obj]))

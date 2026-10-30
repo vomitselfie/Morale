@@ -46,7 +46,8 @@ def test_source_rows_are_not_mutated():
     route_fill_runs(rows);assert rows==before
 
 def test_default_off_and_boolean_validation():
-    source=Project(objects=[split_fill()]);data=json.loads(source.dumps());data['objects'][0].pop('route_fill')
+    from project_files import flat_document
+    source=Project(objects=[split_fill()]);data=flat_document(source);data['objects'][0].pop('route_fill')
     assert not Project.loads(json.dumps(data)).objects[0].route_fill
     data['objects'][0]['route_fill']=1
     with pytest.raises(ValueError):Project.loads(json.dumps(data))
