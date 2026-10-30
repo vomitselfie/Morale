@@ -3,6 +3,70 @@
 Morale is pre-1.0. Stitch output has not been validated by physical sew-outs;
 test on scrap fabric before sewing a finished piece.
 
+## 0.4.0 — 2026-10-29
+
+Cleaner satin columns, sharp corners, richer SVG import and fabric starting
+points. Stitch output is still not validated by physical sew-outs.
+
+### Satin
+- **Sharp corners are sewn instead of refused.** When a satin column turns a
+  corner tighter than it is wide, the inside of the corner becomes a fan around
+  one point. This also applies when pull compensation makes rails cross. Swapped
+  rails and columns that really overlap themselves are still reported.
+- **Short stitches on tight curves:** where stitches crowd together on the inside
+  of a curve or corner, every other one stops a little short, so thread does not
+  pile up.
+- **No more jump back to the start of a column.** Underlay now runs out and back
+  along the column, so the top stitches start where the underlay finishes. The
+  top stitches keep the direction you drew. Satin lettering benefits too.
+- **Satin corners sew-out coupon** (`python -m morale.coupons --coupon
+  satin-corners`, or File → Load sewout coupon…): corners from 120° to 30° in 2 and
+  4 mm columns.
+
+### Fabric
+- **Edit → Fabric settings…** applies experimental starting points (density,
+  pull compensation and underlay) for stable woven, stretch knit and textured
+  fabrics to selected fill and satin parts. Adjust and save your own settings as
+  presets. Image digitizing can use them too, keeping your region corrections.
+- **Fabric comparison sampler** (File → Load fabric comparison sampler) sews all
+  three side by side.
+
+### Artwork and image digitizing
+- SVG import handles far more real-world files: clipping paths, cropped
+  viewports, reusable symbols, embedded stylesheets and CSS variables, modern
+  colour notations, opacity, masks, and linear and radial gradients, which are
+  traced into thread colours.
+- Candidate satin columns are checked with the stitch settings you chose; when a
+  column cannot use them, the preview explains why it kept a fill.
+
+### Lettering
+- Embroidery fonts can follow a curve or a line you have drawn, and make
+  monograms. Extra-large font sizes are available.
+
+### Designing
+- **Circular ripple fill** with an adjustable centre.
+- **View → Layout guides…**: straight guide lines that objects snap to.
+- **Design → Design notes…**: notes saved with the project, printed on sew-out
+  worksheets and searchable in the design library (`notes:`).
+- Drawing shapes, paths and satin rails entirely from the keyboard.
+- **Help → Getting started** for first steps inside the app.
+
+### Exports
+- Trims you add between parts are kept in PES, EXP, JEF, U01, XXX, DST, VP3 and
+  TBF files, and the export check now compares trims and stops with the design.
+
+### Project files
+- Projects are saved in a new layout (version 3) that groups each part's
+  settings by purpose. Older projects open as before, but **projects saved by
+  0.4 cannot be opened in Morale 0.3 or earlier.**
+
+### Behind the scenes
+- Stitches are generated as structured passes before becoming machine commands,
+  the groundwork for better travel between parts.
+- Release bundles now collect third-party licenses and check notices and a
+  source manifest; continuous integration builds and self-tests the bundle on
+  Linux, Windows and macOS for every push.
+
 ## 0.3.0 — 2026-09-27
 
 Embroidery fonts, safer exports and the start of real-world validation. Morale is

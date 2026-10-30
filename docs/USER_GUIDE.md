@@ -5,6 +5,7 @@
 This guide walks through the everyday things you can do in Morale, one step at a
 time. You do not need any embroidery software experience. If a word is new to you,
 look it up in [Embroidery words explained](#embroidery-words-explained) at the end.
+Inside Morale, **Help → Getting started** shows the first steps at any time.
 
 **Contents**
 
@@ -15,14 +16,15 @@ look it up in [Embroidery words explained](#embroidery-words-explained) at the e
 5. [Adding lettering](#adding-lettering)
 6. [Turning a picture into embroidery](#turning-a-picture-into-embroidery)
 7. [Choosing thread colours](#choosing-thread-colours)
-8. [Checking your design before you sew](#checking-your-design-before-you-sew)
-9. [Sending a design to your machine](#sending-a-design-to-your-machine)
-10. [Saving your work](#saving-your-work)
-11. [Designs bigger than your hoop](#designs-bigger-than-your-hoop)
-12. [Your first test stitch-out](#your-first-test-stitch-out)
-13. [Keyboard and larger text](#keyboard-and-larger-text)
-14. [Something went wrong?](#something-went-wrong)
-15. [Embroidery words explained](#embroidery-words-explained)
+8. [Settings for your fabric](#settings-for-your-fabric)
+9. [Checking your design before you sew](#checking-your-design-before-you-sew)
+10. [Sending a design to your machine](#sending-a-design-to-your-machine)
+11. [Saving your work](#saving-your-work)
+12. [Designs bigger than your hoop](#designs-bigger-than-your-hoop)
+13. [Your first test stitch-out](#your-first-test-stitch-out)
+14. [Keyboard and larger text](#keyboard-and-larger-text)
+15. [Something went wrong?](#something-went-wrong)
+16. [Embroidery words explained](#embroidery-words-explained)
 
 ---
 
@@ -95,6 +97,12 @@ rotate it**, type new numbers in the **Object properties** panel on the right.
 **To change how it is stitched**, pick a different **Stitch** in the properties
 panel. Common choices are *Tatami fill* (a solid filled area), *Running stitch*
 (a single line) and *Satin* (smooth columns, good for borders and lettering).
+*Circular ripple fill* sews rings that spread out from a centre point; move the
+centre with **Ripple center X** and **Ripple center Y**.
+
+Satin columns can turn sharp corners. Morale sews the inside of a tight corner as
+a fan around one point and makes every other stitch there a little shorter, so
+the thread does not build up into a lump. Test sharp corners on scrap fabric.
 
 Made a mistake? Choose **Edit → Undo** or press **Ctrl+Z** (**⌘Z** on a Mac).
 
@@ -163,6 +171,21 @@ before sewing.
 To keep a list of the colours in sewing order (handy with DST files, which do not
 store colours), choose **File → Export thread chart…**.
 
+## Settings for your fabric
+
+Stretchy or fluffy fabrics need different stitches from firm cotton. To give
+your design a better start:
+
+1. Select the parts you want to change (or **Edit → Select all objects**).
+2. Choose **Edit → Fabric settings…**.
+3. Pick the kind of **Fabric** closest to yours, for example a stretch knit for
+   T-shirts or a textured fabric for towels.
+4. Click **OK**. **Edit → Undo** puts the old settings back.
+
+These are starting points, not guarantees. Sew a test on your real fabric and
+stabilizer and adjust from there. You can save your own adjusted settings to use
+again.
+
 ## Checking your design before you sew
 
 - **Choose Design → Check design…** for a list of anything worth a second look:
@@ -175,6 +198,10 @@ store colours), choose **File → Export thread chart…**.
 - **Look at the stitch sequence** on the left. Parts sewn on top of others should
   come later in the list.
 - **Watch the stitch count.** More stitches means a longer sew and a stiffer result.
+- **View → Layout guides…** adds straight guide lines, handy for centring a
+  design or lining up lettering.
+- **Design → Design notes…** keeps your own notes with the design, such as the
+  fabric, stabilizer and threads you used. They are saved in the project.
 
 ## Sending a design to your machine
 
@@ -201,6 +228,8 @@ ruler on it measures correctly.
   shapes, lettering and settings. Save one alongside every machine file you make,
   because machine files only store stitches.
 - **File → Save project as…** saves a copy under a new name.
+- Projects saved by Morale 0.4 open in Morale 0.4 or newer. Older projects
+  open as usual.
 - If Morale or your computer closes unexpectedly, Morale offers to **bring your
   design back** the next time it starts. You can also choose
   **File → Recover interrupted session…**.
@@ -223,7 +252,9 @@ Please always test first:
 3. Adjust (for example make lettering larger or pick a different stitch type)
    and try again.
 
-A ready-made test design is included in the `examples/branch-sewout` folder.
+Ready-made test designs are available from **File → Load sewout coupon…**.
+Each one tests a single thing, such as satin widths, fill density or sharp
+corners, and includes a 10 mm square so you can measure the result.
 Photos of your results, with the name of your machine, are very welcome on the
 [issues page](https://github.com/vomitselfie/Morale/issues).
 
