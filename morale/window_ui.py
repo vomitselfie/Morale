@@ -131,6 +131,9 @@ class WindowLayoutMixin:
         edit.addAction(self.action("Edit path / satin points…", self.edit_points, "Ctrl+Shift+P"))
         edit.addAction(self.action("Enable Bezier handles", self.enable_bezier))
         edit.addAction(self.action("Sewing start and direction…", self.routing_dialog))
+        edit.addAction(self.action("Copy stitch settings", self.copy_stitch_settings))
+        edit.addAction(self.action("Paste stitch settings", self.paste_stitch_settings))
+        edit.addAction(self.action("Select same stitch type", self.select_same_stitch_type))
         edit.addAction(self.action("Fabric settings…", self.fabric_dialog))
         handles = edit.addMenu("Bezier handle dragging")
         self.handle_drag_actions = QActionGroup(self)
@@ -217,6 +220,7 @@ class WindowLayoutMixin:
         from .project_notes import edit_notes
         design.addAction(self.action("Design notes…",lambda:edit_notes(self)))
         design.addAction(self.action("Check design…", self.check_design, "Ctrl+Shift+K"))
+        design.addAction(self.action("Test swatches…", self.test_swatches))
         self.tools_menu = self.menuBar().addMenu("&Tools")
         help_menu = self.menuBar().addMenu("&Help")
         help_menu.addAction(self.action("Getting started", self.help))

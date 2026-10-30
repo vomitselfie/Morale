@@ -36,6 +36,36 @@ class EditingMixin:
             self.commit(lambda:setattr(self.project,'objects',candidate.objects))
         self.statusBar().showMessage(f'Fabric settings applied to {count} fill/satin objects.')
 
+    def copy_stitch_settings(self):
+        from .settings_copy import copy_settings
+        obj=self.selected_object()
+        if obj is None:
+            self.statusBar().showMessage('Select the part whose stitch settings you want to copy.');return
+        self.copied_stitch_settings=copy_settings(obj)
+        self.statusBar().showMessage(f'Copied the stitch settings of “{obj.name}”. Select other parts and choose Paste stitch settings.')
+
+    def paste_stitch_settings(self):
+        from .settings_copy import paste_settings
+        settings=getattr(self,'copied_stitch_settings',None)
+        if settings is None:
+            self.statusBar().showMessage('Copy stitch settings from a part first.');return
+        if not self.selected_ids:
+            self.statusBar().showMessage('Select the parts to paste stitch settings onto.');return
+        candidate,changed,kept=paste_settings(self.project,self.selected_ids,settings)
+        try:generate(candidate)
+        except ValueError as exc:
+            self.error(f'These stitch settings cannot be used on the selected parts: {exc}');return
+        if changed:self.commit(lambda:setattr(self.project,'objects',candidate.objects))
+        message=f'Stitch settings pasted onto {changed} part{"s" if changed!=1 else ""}.'
+        if kept:message+=f' {kept} kept their own stitch type, which suits their shape.'
+        self.statusBar().showMessage(message)
+
+    def select_same_stitch_type(self):
+        obj=self.selected_object()
+        if obj is None:
+            self.statusBar().showMessage('Select a part first.');return
+        self.select_many([o.id for o in self.project.objects if o.stitch_type==obj.stitch_type and o.visible],expand_groups=False)
+
     def routing_dialog(self):
         obj = self.selected_object()
         if obj is None:

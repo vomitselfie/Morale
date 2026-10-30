@@ -97,6 +97,16 @@ is an overview, not an actual-size placement template.
   coordinates. Changes support Undo. Primitives become polygons when rerouted;
   lettering becomes editable contours. Arbitrary points within curve segments and
   reversal of imported manual commands are not included.
+- **Edit → Copy/Paste stitch settings** carries one object's stitch type and
+  stitch, fill, satin, underlay, motif, ripple and finishing settings to the
+  selection in one Undo step. Shape, thread, name, lettering and fill start/end
+  points stay; the stitch type is kept where the receiving shape cannot use it.
+  **Edit → Select same stitch type** selects every visible object sewn the same way.
+- **Design → Test swatches…** opens a new design with copies of the selection,
+  one setting (row spacing, pull compensation, stitch length or fill angle)
+  stepped across 2–9 values in a grid that must fit the hoop, each labelled in a
+  small embroidery font and listed in the design notes. The current design is
+  only replaced after the usual unsaved-work prompt. Idea after ZigZag.
 - **Inside travel for fills:** with both *Connect safe fill rows* and *Route
   disconnected fill runs* on, jumps between fill sections become travel stitches
   that go straight where that stays inside the shape, otherwise the shorter way

@@ -3,6 +3,26 @@
 Morale is pre-1.0. Stitch output has not been validated by physical sew-outs;
 test on scrap fabric before sewing a finished piece.
 
+## Unreleased
+
+### Designing
+- **Design → Test swatches…**: copies of the selected parts with one setting
+  (row spacing, pull compensation, stitch length or fill angle) stepped across
+  2–9 values, each labelled, as a new design to sew on your own fabric.
+- **Edit → Copy / Paste stitch settings** and **Select same stitch type**.
+- **Choose where a fill starts and ends** in Edit → Sewing start and direction…
+  (renamed from Path start and direction), so the thread comes in and leaves near
+  the neighbouring parts.
+
+### Stitches
+- With *Connect safe fill rows* and *Route disconnected fill runs* both on, fills
+  travel inside the shape between sections instead of jumping across it.
+- Long satin stitches are split at staggered points, so the splits do not line
+  up into a groove down a wide column.
+
+Several of these ideas come from ZigZag (Apache-2.0), credited in
+THIRD_PARTY_NOTICES.md.
+
 ## 0.4.0 — 2026-10-29
 
 Cleaner satin columns, sharp corners, richer SVG import and fabric starting

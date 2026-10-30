@@ -104,6 +104,16 @@ Satin columns can turn sharp corners. Morale sews the inside of a tight corner a
 a fan around one point and makes every other stitch there a little shorter, so
 the thread does not build up into a lump. Test sharp corners on scrap fabric.
 
+**To give several parts the same stitch settings**, select the part that looks
+right and choose **Edit → Copy stitch settings**. Then select the other parts
+(**Edit → Select same stitch type** picks every part sewn the same way) and choose
+**Edit → Paste stitch settings**. Each part keeps its own shape and colour.
+
+**To choose where a filled part starts and finishes**, select it and choose
+**Edit → Sewing start and direction…**. Pick a corner near the part sewn before
+it as the start, and one near the next part as the end. The preview shows the
+result.
+
 Made a mistake? Choose **Edit → Undo** or press **Ctrl+Z** (**⌘Z** on a Mac).
 
 ## Adding lettering
@@ -251,6 +261,12 @@ Please always test first:
 2. Sew the design once and look for gaps, puckering or loose threads.
 3. Adjust (for example make lettering larger or pick a different stitch type)
    and try again.
+
+**To test your own design**, select the part you are unsure about and choose
+**Design → Test swatches…**. Pick a setting, such as row spacing, and a range of
+values. Morale makes a new design with a copy of the part for each value, with
+the value sewn underneath. Sew it on your real fabric and use the one that looks
+best. The values are also listed in **Design → Design notes…**.
 
 Ready-made test designs are available from **File → Load sewout coupon…**.
 Each one tests a single thing, such as satin widths, fill density or sharp
