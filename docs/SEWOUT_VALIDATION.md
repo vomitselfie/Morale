@@ -40,6 +40,7 @@ names:
 | `lettering` | Capitals and lowercase in an embroidery font at 6–15 mm |
 | `branch-joins` | Satin branches joined with exact, 0.3 mm and 0.6 mm overlaps |
 | `satin-corners` | Sharp satin corners from 120° to 30°, 2 and 4 mm wide |
+| `decorative-stitches` | Blanket, meander and cross-stitch, and satin sewn smooth, as S-stitch and as open zigzag |
 
 Each coupon folder holds machine files (PES, PES v1, EXP, DST), the editable
 project, an actual-size placement PDF, a thread chart, `metadata.json`,

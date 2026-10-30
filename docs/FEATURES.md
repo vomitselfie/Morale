@@ -107,6 +107,16 @@ is an overview, not an actual-size placement template.
   stepped across 2–9 values in a grid that must fit the hoop, each labelled in a
   small embroidery font and listed in the design notes. The current design is
   only replaced after the usual unsaved-work prompt. Idea after ZigZag.
+- **Blanket, meander and cross-stitch** (after ZigZag): blanket (E-stitch) sews
+  along closed outlines with prongs into the shape (or left of open paths), with
+  editable prong spacing and length; meander is one repeatable random walk
+  through grid cells with rounded corners, clipped to outlines and holes;
+  cross-stitch sews an X in each cell of a grid shared by all objects, out and
+  back with alternating diagonals so cells are not joined along their edges.
+  **Satin style** adds S-stitch (end stitches straight) and open zigzag (three
+  times the row spacing). A `decorative-stitches` coupon covers all of them.
+  Tartan and multicolor satin need several threads in one object, which Morale's
+  one-thread-per-object model does not support.
 - **Stitch settings in SVG names:** layer and object names (id, Inkscape label or
   data-name, with Illustrator `_xHH_` escapes decoded) set stitch type (fill,
   satin, run, contour, ripple, skip), angle, spacing, stitch length, pull
@@ -115,6 +125,7 @@ is an overview, not an actual-size placement template.
   names override; `stroke.` tokens apply to outlines only, and `stroke.satin w=MM`
   sews a stroke as a satin column. Filled shapes named `satin` go through the
   automatic column check and stay fill with an explanation when unsuitable.
+  `style=s|zigzag` sets the satin style and `cell=` the cross-stitch size.
   Unknown or out-of-range tokens are reported, never guessed. Vocabulary after
   ZigZag; sewing order (`o=`), multicolor and tartan tokens are not used.
 - **Inside travel for fills:** with both *Connect safe fill rows* and *Route

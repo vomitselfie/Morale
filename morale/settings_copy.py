@@ -8,7 +8,7 @@ from copy import deepcopy
 
 from .model import Project, SETTING_GROUPS
 
-COPIED_GROUPS = ("stitch", "fill", "satin", "underlay", "motif", "ripple", "finishing")
+COPIED_GROUPS = ("stitch", "fill", "satin", "underlay", "motif", "ripple", "decorative", "finishing")
 # Positions on one particular outline.
 NOT_COPIED = {"fill_start", "fill_end"}
 

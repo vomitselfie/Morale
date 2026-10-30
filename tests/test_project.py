@@ -72,7 +72,7 @@ def test_saved_objects_are_grouped_by_purpose():
     data = json.loads(satin_sample().dumps())
     obj = data["objects"][0]
     assert list(obj) == list(SETTING_GROUPS)
-    assert obj["satin"] == {"satin_max": 6} and obj["finishing"]["tie_in"] is True
+    assert obj["satin"] == {"satin_max": 6, "satin_style": "plain"} and obj["finishing"]["tie_in"] is True
     assert obj["stitch"]["stitch_type"] == "satin" and obj["shape"]["kind"] == "satin"
 
 

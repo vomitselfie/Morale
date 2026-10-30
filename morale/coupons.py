@@ -323,12 +323,33 @@ def satin_corners():
         'physically validated.')
 
 
+def decorative_stitches():
+    """Blanket, meander, cross-stitch and satin styles, each on its own sample."""
+    tests=[]
+    for column,(kind,settings) in enumerate((('blanket',{}),('meander',{}),('cross',{}))):
+        x=-28+28*column
+        obj=rectangle(x,-24,20,20,f'{kind.title()} 20 mm',stitch_type=kind,underlay=False,**settings)
+        tests.append(test(obj,stitch_type=kind,nominal_width_mm=20,nominal_height_mm=20,
+                          prong_spacing_mm=obj.blanket_spacing if kind=='blanket' else None,
+                          prong_length_mm=obj.blanket_width if kind=='blanket' else None,
+                          meander_spacing_mm=obj.meander_spacing if kind=='meander' else None,
+                          cross_size_mm=obj.cross_cell if kind=='cross' else None))
+    for column,style in enumerate(('plain','s','zigzag')):
+        x=-28+28*column
+        obj=satin([(x,6),(x,30)],5,f'Satin {style} 5 mm',satin_style=style)
+        tests.append(test(obj,stitch_type='satin',satin_style=style,width_mm=5))
+    return 'Decorative stitches',tests,('Top row left to right: blanket (E-stitch), meander and cross-stitch on 20 mm squares. '
+        'Bottom row: 5 mm satin columns sewn smooth, as S-stitch and as open zigzag. Look for puckering, thread '
+        'build-up where lines meet, loose loops on long cross-stitch diagonals, and whether each reads as intended. '
+        'These stitch types are not yet physically validated.')
+
+
 COUPONS = {
     "satin-width": satin_width, "pull-compensation": pull_compensation, "fill-density": fill_density,
     "fill-angles": fill_angles, "underlay": underlay, "small-fills": small_fills, "stitch-length": stitch_length,
     "tiny-stitches": tiny_stitches, "layering": layering, "jumps": jumps, "lettering": lettering,
     "branch-joins": branch_joins, "fabric-profiles": fabric_profiles, "ripple-spacing": ripple_spacing,
-    "satin-corners": satin_corners,
+    "satin-corners": satin_corners, "decorative-stitches": decorative_stitches,
 }
 
 
@@ -384,6 +405,10 @@ def project_evaluation_pdf(project,path):
             if obj.underlay:target.update(underlay_style=obj.underlay_style,underlay_inset_mm=obj.underlay_inset,
                                          underlay_spacing_mm=obj.underlay_spacing)
         if obj.stitch_type in {'fill','satin'}:target['pull_compensation_per_side_mm']=obj.pull_compensation
+        if obj.stitch_type=='satin' and obj.satin_style!='plain':target['satin_style']=obj.satin_style
+        if obj.stitch_type=='blanket':target.update(prong_spacing_mm=obj.blanket_spacing,prong_length_mm=obj.blanket_width)
+        if obj.stitch_type=='meander':target['meander_spacing_mm']=obj.meander_spacing
+        if obj.stitch_type=='cross':target['cross_size_mm']=obj.cross_cell
         tests.append((obj,target))
     if not tests:raise ValueError('The design has no included objects to evaluate.')
     digest=hashlib.sha256(snapshot.encode('utf-8')).hexdigest()

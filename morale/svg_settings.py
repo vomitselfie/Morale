@@ -6,12 +6,14 @@ group apply to everything inside it; inner names override outer ones. Tokens
 prefixed ``stroke.`` apply only to an object's outline. The vocabulary follows
 ZigZag's layer-name tokens (Apache-2.0); Morale supports the subset below.
 
-    fill | tatami, satin, run | running, contour, ripple, skip   stitch type
+    fill | tatami, satin, run | running, contour, ripple, blanket, meander,
+    cross, skip   stitch type
     a=DEG  fill angle          s=MM   row spacing       l=MM  stitch length
     pc=MM  pull compensation   u=0|1  underlay          w=MM  satin width of a stroke
     ul=center|zigzag|center+zigzag|edge|sparse|edge+sparse|none   underlay passes
     r=3    triple (bean) running stitch                  t=RRGGBB  thread color
     st=T, en=T  where a fill starts and ends, 0–1 along its outline
+    style=satin|s|zigzag  satin top stitches      cell=MM  cross-stitch size
     trim, stop  trim or operator stop after the object
 """
 import math
@@ -22,7 +24,9 @@ ATTRIBUTE = "data-morale-settings"
 NAME_ATTRIBUTE = "data-morale-name"
 INKSCAPE_LABEL = "{http://www.inkscape.org/namespaces/inkscape}label"
 TYPES = {"fill": "fill", "tatami": "fill", "satin": "satin", "run": "running", "running": "running",
-         "contour": "contour", "ripple": "ripple", "skip": "skip", "off": "skip", "nostitch": "skip"}
+         "contour": "contour", "ripple": "ripple", "skip": "skip", "off": "skip", "nostitch": "skip",
+         "blanket": "blanket", "estitch": "blanket", "meander": "meander",
+         "cross": "cross", "crossstitch": "cross", "cross-stitch": "cross"}
 NUMBERS = {  # token: (setting, low, high)
     "a": ("angle", -360, 360), "angle": ("angle", -360, 360),
     "s": ("spacing", .2, 5), "spacing": ("spacing", .2, 5), "d": ("spacing", .2, 5), "density": ("spacing", .2, 5),
@@ -30,6 +34,7 @@ NUMBERS = {  # token: (setting, low, high)
     "pc": ("pull_compensation", 0, 2), "pull": ("pull_compensation", 0, 2),
     "w": ("width", .4, 12), "width": ("width", .4, 12),
     "r": ("repeats", 1, 9), "repeats": ("repeats", 1, 9),
+    "cell": ("cross_cell", 1, 10),
     "st": ("start", 0, 1), "start": ("start", 0, 1), "en": ("end", 0, 1), "end": ("end", 0, 1),
 }
 FLAGS = {"1": True, "on": True, "yes": True, "true": True, "0": False, "off": False, "no": False, "false": False}
@@ -97,6 +102,8 @@ def parse(text):
                 target["underlay_style"] = UNDERLAY.get(value)
             elif key in {"t", "thread"} and re.fullmatch(r"#?[0-9a-f]{6}", value):
                 target["color"] = "#" + value.lstrip("#")
+            elif key == "style" and value in {"satin", "plain", "s", "zigzag"}:
+                target["satin_style"] = "plain" if value == "satin" else value
             elif key in {"trim", "stop"} and value in FLAGS:
                 target[key] = FLAGS[value]
             else:
@@ -122,11 +129,13 @@ def point_along(ring, fraction):
 
 def apply(obj, settings, notices):
     """Set the numeric and finishing settings of ``obj`` from parsed ``settings``."""
-    for key in ("angle", "spacing", "stitch_length", "pull_compensation", "color"):
+    for key in ("angle", "spacing", "stitch_length", "pull_compensation", "color", "cross_cell"):
         if key in settings:
             setattr(obj, key, settings[key])
     if "underlay" in settings:
         obj.underlay = settings["underlay"]
+    if "satin_style" in settings and obj.stitch_type == "satin":
+        obj.satin_style = settings["satin_style"]
     if "underlay_style" in settings:
         style = settings["underlay_style"]
         satin = obj.stitch_type == "satin"

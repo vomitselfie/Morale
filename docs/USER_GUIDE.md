@@ -73,7 +73,7 @@ adding a few words to its layer or object name before you save the SVG:
 
 | Add to the name | What it does |
 | --- | --- |
-| `fill`, `satin`, `run`, `contour`, `ripple` | the stitch type (`satin` on a thin filled shape makes a satin column) |
+| `fill`, `satin`, `run`, `contour`, `ripple`, `blanket`, `meander`, `cross` | the stitch type (`satin` on a thin filled shape makes a satin column) |
 | `skip` | leave this part out |
 | `a=45` | fill angle in degrees |
 | `s=0.4` | row spacing in mm |
@@ -118,6 +118,17 @@ panel. Common choices are *Tatami fill* (a solid filled area), *Running stitch*
 (a single line) and *Satin* (smooth columns, good for borders and lettering).
 *Circular ripple fill* sews rings that spread out from a centre point; move the
 centre with **Ripple center X** and **Ripple center Y**.
+
+A few more stitches for special looks:
+
+- *Blanket (E-stitch)* runs along the edge with short prongs into the shape. It
+  is often used around appliqué fabric.
+- *Meander* sews one wandering line through the shape, like quilting. It is light
+  and soft.
+- *Cross-stitch* fills the shape with little X's on a grid, like hand
+  cross-stitch.
+- Satin columns can also be sewn as an *S-stitch* (each stitch gently curved) or
+  an *Open zigzag*: choose under **Satin style**.
 
 Satin columns can turn sharp corners. Morale sews the inside of a tight corner as
 a fan around one point and makes every other stitch there a little shorter, so

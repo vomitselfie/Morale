@@ -5,6 +5,12 @@ test on scrap fabric before sewing a finished piece.
 
 ## Unreleased
 
+### Stitches
+- **New stitch types:** *Blanket (E-stitch)* for appliqué edges, *Meander* (a
+  soft quilting line) and *Cross-stitch*. Satin columns can be sewn as
+  *S-stitch* or *Open zigzag* (Satin style). Test them with the new
+  `decorative-stitches` sew-out coupon.
+
 ### Artwork
 - **Stitch settings in SVG layer names:** name a layer or object in Illustrator,
   Inkscape or Affinity (`petals fill a=30`, `border stroke.satin w=2`, `skip`) and

@@ -293,7 +293,7 @@ class Canvas(StitchCanvasMixin, QWidget):
                 p.translate(self.drag)
             color = QColor(obj.color)
             color.setAlpha(22 if self.playhead is not None else (65 if self.show_stitches else 215))
-            p.setBrush(color if obj.stitch_type in {"fill", "contour", "ripple", "satin"} else Qt.BrushStyle.NoBrush)
+            p.setBrush(color if obj.stitch_type in {"fill", "contour", "ripple", "satin", "meander", "cross"} else Qt.BrushStyle.NoBrush)
             p.setPen(QPen(QColor("#87958d"),1/self.scale,Qt.PenStyle.DotLine) if obj.stitch_type=="motif" else QPen(QColor(obj.color), .18))
             p.drawPath(self.outline_path(obj))
             p.restore()

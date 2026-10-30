@@ -342,7 +342,7 @@ class MainWindow(WindowLayoutMixin, FileWorkflowsMixin, ArtworkMixin, EditingMix
             for index in range(self.stitch_type.count()):
                 mode = self.stitch_type.itemData(index)
                 # Lettering offers planned satin columns alongside fill and running.
-                enabled = mode in ({"manual"} if obj.kind == "stitches" else {"satin"} if obj.kind == "satin" else {"running", "triple", "motif"} if obj.kind == "path" else {"satin"} if obj.lettering.get("embroidery_font") else {"satin", "fill", "running", "triple"} if obj.lettering else {"fill", "contour", "ripple", "running", "triple", "motif", "pattern"})
+                enabled = mode in ({"manual"} if obj.kind == "stitches" else {"satin"} if obj.kind == "satin" else {"running", "triple", "motif", "blanket"} if obj.kind == "path" else {"satin"} if obj.lettering.get("embroidery_font") else {"satin", "fill", "running", "triple"} if obj.lettering else {"fill", "contour", "ripple", "running", "triple", "motif", "pattern", "blanket", "meander", "cross"})
                 self.stitch_type.model().item(index).setEnabled(enabled)
             self.fields["stitch_length"].setEnabled(obj.kind != "stitches")
             self.fields["minimum_stitch"].setEnabled(obj.kind != "stitches")
@@ -359,6 +359,12 @@ class MainWindow(WindowLayoutMixin, FileWorkflowsMixin, ArtworkMixin, EditingMix
             self.fields["motif_row_spacing"].setEnabled(obj.stitch_type=="pattern")
             self.property_form.setRowVisible(self.fields["motif_row_spacing"],obj.stitch_type=="pattern")
             self.fields["satin_max"].setEnabled(obj.kind == "satin")
+            self.satin_style.setCurrentIndex(self.satin_style.findData(obj.satin_style))
+            self.satin_style.setEnabled(obj.stitch_type == "satin")
+            self.property_form.setRowVisible(self.satin_style,obj.stitch_type == "satin")
+            for key,types in (("blanket_spacing",{"blanket"}),("blanket_width",{"blanket"}),("meander_spacing",{"meander"}),("cross_cell",{"cross"})):
+                self.fields[key].setEnabled(obj.stitch_type in types)
+                self.property_form.setRowVisible(self.fields[key],obj.stitch_type in types)
             self.fields["pull_compensation"].setEnabled(obj.stitch_type in {"fill", "satin"})
             self.underlay.setChecked(obj.underlay)
             self.visible.setChecked(obj.visible)
@@ -470,7 +476,7 @@ class MainWindow(WindowLayoutMixin, FileWorkflowsMixin, ArtworkMixin, EditingMix
             if key == "stitch_type" and obj.lettering:
                 self.change_lettering_stitches(obj, value)
                 return
-            if key == "stitch_type" and (value in {"manual", "satin"} or obj.kind in {"stitches", "satin"} or obj.kind == "path" and value not in {"running", "triple", "motif"}):
+            if key == "stitch_type" and (value in {"manual", "satin"} or obj.kind in {"stitches", "satin"} or obj.kind == "path" and value not in {"running", "triple", "motif", "blanket"}):
                 return
             def change():
                 setattr(obj, key, value)

@@ -144,7 +144,7 @@ def triple_run(stitches):
     return result
 
 
-def satin(points, spacing, maximum, compensation=0, strict=True):
+def satin(points, spacing, maximum, compensation=0, strict=True, style="plain"):
     """Alternate rails sampled at half row spacing, splitting long spans.
 
     ``strict`` turns corners whose rungs cross into fans, then rejects rail cells
@@ -152,7 +152,8 @@ def satin(points, spacing, maximum, compensation=0, strict=True):
     turns tight curves with slightly concave cells, which sew as designed, so
     lettering columns pass ``strict=False``. Crowded landings on the inside of
     curves are shortened (see satin_geometry.short_stitch_targets), and stitches
-    longer than ``maximum`` are split at staggered points.
+    longer than ``maximum`` are split at staggered points. ``style`` "s" bends
+    each stitch into a shallow S (after ZigZag's S-stitch).
     """
     from .satin_geometry import pivot_corners, short_stitch_targets, staggered_split, validate_cells
     if isinstance(compensation, bool) or not math.isfinite(compensation) or not 0 <= compensation <= 2:
@@ -189,10 +190,22 @@ def satin(points, spacing, maximum, compensation=0, strict=True):
                 raise ValueError(f'Pull compensation produces invalid satin rails: {exc} Reduce compensation or split the column.') from exc
         stations = expanded
     result = [Stitch(*stations[0][0], "jump")]
-    for index, target in enumerate(short_stitch_targets(stations)):
+    targets = short_stitch_targets(stations)
+    for index, target in enumerate(targets):
         previous = (result[-1].x, result[-1].y)
-        if math.dist(previous, target) > .001:
-            result.extend(Stitch(x, y) for x, y in staggered_split(previous, target, maximum, index))
+        distance = math.dist(previous, target)
+        if distance <= .001:
+            continue
+        waypoints = [target]
+        # The end stitches stay straight so the column ends stay square.
+        if style == "s" and distance > .6 and 1 < index < len(targets) - 1:
+            dx, dy = (target[0]-previous[0]) / distance, (target[1]-previous[1]) / distance
+            bend = min(distance * .18, .8) * (1 if index % 2 else -1)
+            waypoints = [(previous[0] + (target[0]-previous[0])*f - dy*bend*sign, previous[1] + (target[1]-previous[1])*f + dx*bend*sign)
+                         for f, sign in ((.3, 1), (.7, -1))] + [target]
+        for point in waypoints:
+            start = (result[-1].x, result[-1].y)
+            result.extend(Stitch(x, y) for x, y in staggered_split(start, point, maximum, index))
         if len(result) > MAX_STITCHES:
             raise ValueError("Satin exceeds the preview command limit.")
     return result
@@ -326,7 +339,10 @@ def satin_column_runs(obj, rails, style, strict=True):
     """Underlay and top passes for one satin column, planned so that the column
     starts and ends where its top pass does (see generated.plan_column)."""
     from .generated import GeneratedRun, plan_column
-    top = GeneratedRun(satin(rails, obj.spacing, obj.satin_max, obj.pull_compensation, strict=strict), "top", reversible=True)
+    # An open zigzag is the same column sewn three times more sparsely.
+    spacing = obj.spacing * 3 if obj.satin_style == "zigzag" else obj.spacing
+    top = GeneratedRun(satin(rails, spacing, obj.satin_max, obj.pull_compensation, strict=strict, style=obj.satin_style),
+                       "top", reversible=True)
     if not obj.underlay:
         return [top]
     passes, center = satin_underlay_runs(obj, rails, style)
@@ -426,6 +442,17 @@ def generate_object(obj):
                 stitches += segment(a,b,obj.stitch_length)
                 if len(stitches)>MAX_STITCHES:
                     raise ValueError("Motif stitches exceed the preview command limit.")
+    elif obj.stitch_type in {"blanket", "meander", "cross"}:
+        from .decorative import decorative_paths
+        paths, longest = decorative_paths(obj)
+        stitches = []
+        for path in paths:
+            stitches.append(Stitch(*path[0], "jump"))
+            for a, b in zip(path, path[1:]):
+                if math.dist(a, b) > 1e-6:
+                    stitches += segment(a, b, longest)
+            if len(stitches) > MAX_STITCHES:
+                raise ValueError("Decorative stitches exceed the preview command limit.")
     elif obj.stitch_type in {"running", "triple"}:
         stitches = [s for ring in rings for s in running(ring, obj.stitch_length, obj.kind != "path")]
         if obj.stitch_type == "triple":

@@ -72,6 +72,11 @@ class DesignObject:
     # automatic. Kept but unused while another stitch type is chosen.
     fill_start: list = field(default_factory=list)
     fill_end: list = field(default_factory=list)
+    satin_style: str = "plain"  # plain, s (S-stitch) or zigzag (open)
+    blanket_spacing: float = 3
+    blanket_width: float = 2.5
+    meander_spacing: float = 3
+    cross_cell: float = 2.5
 
     def outline(self):
         if self.handles:
@@ -119,11 +124,12 @@ SETTING_GROUPS = {
     "stitch": ("stitch_type", "spacing", "stitch_length", "angle", "pull_compensation", "minimum_stitch"),
     "fill": ("connect_fill", "route_fill", "density_gradient", "gradient_end_spacing", "gradient_reverse",
              "fill_start", "fill_end"),
-    "satin": ("satin_max",),
+    "satin": ("satin_max", "satin_style"),
     "underlay": ("underlay", "underlay_style", "underlay_inset", "underlay_spacing"),
     "motif": ("motif_pattern", "motif_width", "motif_height", "motif_spacing", "motif_row_spacing",
               "custom_motif_paths", "custom_motif_name", "motif_reflected", "pattern_flip_x", "pattern_flip_y"),
     "ripple": ("ripple_center_x", "ripple_center_y"),
+    "decorative": ("blanket_spacing", "blanket_width", "meander_spacing", "cross_cell"),
     "lettering": ("lettering",),
     "finishing": ("tie_in", "tie_off", "trim_after", "stop_after", "jump_trim"),
 }
@@ -247,10 +253,20 @@ class Project:
                 obj = DesignObject(**raw)
             except TypeError as exc:
                 raise ValueError("Unsupported object properties.") from exc
-            if not isinstance(obj.kind, str) or not isinstance(obj.stitch_type, str) or obj.kind not in {"ellipse", "rectangle", "leaf", "polygon", "path", "stitches", "satin", "compound"} or obj.stitch_type not in {"running", "triple", "fill", "contour", "ripple", "motif", "pattern", "manual", "satin"}:
+            if not isinstance(obj.kind, str) or not isinstance(obj.stitch_type, str) or obj.kind not in {"ellipse", "rectangle", "leaf", "polygon", "path", "stitches", "satin", "compound"} or obj.stitch_type not in {"running", "triple", "fill", "contour", "ripple", "motif", "pattern", "manual", "satin", "blanket", "meander", "cross"}:
                 raise ValueError("Unsupported object or stitch type.")
             if obj.stitch_type == "ripple" and obj.kind in {"path","satin","stitches"}:
                 raise ValueError("Ripple fill requires a closed outline.")
+            if obj.stitch_type in {"meander", "cross"} and obj.kind in {"path","satin","stitches"}:
+                raise ValueError("Meander and cross-stitch need a closed outline.")
+            if obj.stitch_type == "blanket" and obj.kind in {"satin","stitches"}:
+                raise ValueError("Blanket stitch follows an outline or line.")
+            if not isinstance(obj.satin_style, str) or obj.satin_style not in {"plain", "s", "zigzag"}:
+                raise ValueError("Satin style must be plain, S-stitch or zigzag.")
+            number(obj.blanket_spacing, 1, 10)
+            number(obj.blanket_width, .5, 10)
+            number(obj.meander_spacing, 1, 10)
+            number(obj.cross_cell, 1, 10)
             if not isinstance(obj.id, str) or obj.id in ids or len(obj.id) > 100:
                 raise ValueError("Invalid or duplicate object ID.")
             if not isinstance(obj.group_id, str) or len(obj.group_id) > 100:
@@ -359,8 +375,8 @@ class Project:
                         raise ValueError("Invalid Bezier handle coordinate.")
                     for v in point:
                         number(v, -.500000001, .500000001)
-            if obj.kind == "path" and obj.stitch_type not in {"running", "triple", "motif"}:
-                raise ValueError("Open paths must use running or motif stitches.")
+            if obj.kind == "path" and obj.stitch_type not in {"running", "triple", "motif", "blanket"}:
+                raise ValueError("Open paths must use running, motif or blanket stitches.")
             satin_lettering = obj.kind == "compound" and "columns" in obj.lettering
             if (obj.kind == "satin" or satin_lettering) != (obj.stitch_type == "satin"):
                 raise ValueError("Satin stitches require paired rails.")

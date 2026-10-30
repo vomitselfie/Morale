@@ -292,7 +292,7 @@ def convert_document(document, notices, *, center_artwork=True):
                     width=bounds.width()/20, height=bounds.height()/20, contours=contours,
                     color=element.fill.hex[:7], underlay=False, connect_fill=True)
                 fill_type = base.get("type")
-                if fill_type in {"fill", "contour", "ripple", "running"}:
+                if fill_type in {"fill", "contour", "ripple", "running", "blanket", "meander", "cross"}:
                     fill.stitch_type = fill_type
                 elif fill_type == "satin":
                     satin_fills.add(fill.id)
