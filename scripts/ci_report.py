@@ -6,6 +6,7 @@ file names the last test that started.
 """
 import argparse
 import os
+import sys
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
@@ -21,6 +22,10 @@ def escape_property(text):
 
 
 def main():
+    # Windows consoles default to a legacy code page; test names and messages
+    # contain characters it cannot encode, which would hide every failure.
+    for stream in (sys.stdout, sys.stderr):
+        stream.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser()
     parser.add_argument("--junit", type=Path, required=True)
     parser.add_argument("--progress", type=Path)
