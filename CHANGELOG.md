@@ -3,31 +3,12 @@
 Morale is pre-1.0. Stitch output has not been validated by physical sew-outs;
 test on scrap fabric before sewing a finished piece.
 
-## Unreleased
-
-### Machines and threads
-- **Bernina colour files:** exporting EXP also saves a matching `.inf` thread
-  colour file, as Bernina's own software does. Copy both to the machine.
-- **Brother Embroidery threads** chart with the catalog numbers printed on
-  Brother spools, for matching colours and converting artwork.
-
-### Stitches
-- **New stitch types:** *Blanket (E-stitch)* for appliqué edges, *Meander* (a
-  soft quilting line) and *Cross-stitch*. Satin columns can be sewn as
-  *S-stitch* or *Open zigzag* (Satin style). Test them with the new
-  `decorative-stitches` sew-out coupon.
-
-### Artwork
-- **Stitch settings in SVG layer names:** name a layer or object in Illustrator,
-  Inkscape or Affinity (`petals fill a=30`, `border stroke.satin w=2`, `skip`) and
-  File → Import SVG artwork… stitches it that way. Unusable names are listed.
-
 ## 0.4.0 — 2026-10-30
 
-Cleaner satin columns, sharp corners, test swatches for your own fabric, richer
-SVG import and fabric starting points. Stitch output is still not validated by
-physical sew-outs. Several ideas come from ZigZag (Apache-2.0), credited in
-THIRD_PARTY_NOTICES.md.
+Cleaner satin columns, sharp corners, new stitch types, test swatches for your
+own fabric, Bernina colour files, richer SVG import and fabric starting points.
+Stitch output is still not validated by physical sew-outs. Several ideas come
+from ZigZag (Apache-2.0), credited in THIRD_PARTY_NOTICES.md.
 
 ### Satin
 - **Sharp corners are sewn instead of refused.** When a satin column turns a
@@ -42,9 +23,15 @@ THIRD_PARTY_NOTICES.md.
   top stitches keep the direction you drew. Satin lettering benefits too.
 - **Long satin stitches are split at staggered points**, so the splits do not line
   up into a groove down a wide column.
+- **Satin styles:** columns can also be sewn as *S-stitch* or *Open zigzag*.
 - **Satin corners sew-out coupon** (`python -m morale.coupons --coupon
   satin-corners`, or File → Load sewout coupon…): corners from 120° to 30° in 2 and
   4 mm columns.
+
+### New stitch types
+- *Blanket (E-stitch)* for appliqué edges, *Meander* (a soft quilting line) and
+  *Cross-stitch*. Test them, with the satin styles, on the new
+  `decorative-stitches` sew-out coupon.
 
 ### Fabric
 - **Edit → Fabric settings…** applies experimental starting points (density,
@@ -55,6 +42,9 @@ THIRD_PARTY_NOTICES.md.
   three side by side.
 
 ### Artwork and image digitizing
+- **Stitch settings in SVG layer names:** name a layer or object in Illustrator,
+  Inkscape or Affinity (`petals fill a=30`, `border stroke.satin w=2`, `skip`) and
+  File → Import SVG artwork… stitches it that way. Unusable names are listed.
 - SVG import handles far more real-world files: clipping paths, cropped
   viewports, reusable symbols, embedded stylesheets and CSS variables, modern
   colour notations, opacity, masks, and linear and radial gradients, which are
@@ -84,7 +74,11 @@ THIRD_PARTY_NOTICES.md.
 - Drawing shapes, paths and satin rails entirely from the keyboard.
 - **Help → Getting started** for first steps inside the app.
 
-### Exports
+### Machines, exports and threads
+- **Bernina colour files:** exporting EXP also saves a matching `.inf` thread
+  colour file, as Bernina's own software does. Copy both to the machine.
+- **Brother Embroidery threads** chart with the catalog numbers printed on
+  Brother spools, for matching colours and converting artwork.
 - Trims you add between parts are kept in PES, EXP, JEF, U01, XXX, DST, VP3 and
   TBF files, and the export check now compares trims and stops with the design.
 
